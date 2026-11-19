@@ -21,6 +21,7 @@ const CATEGORY_CONFIG: Record<string, { icon: React.ReactNode; color: string }> 
   no_pcr: { icon: <FileText className="h-4 w-4" />, color: "text-destructive" },
   pcr_not_billed: { icon: <Send className="h-4 w-4" />, color: "text-[hsl(var(--status-yellow))]" },
   no_followup: { icon: <AlertTriangle className="h-4 w-4" />, color: "text-[hsl(var(--status-yellow))]" },
+  secondary_coverage_review: { icon: <Shield className="h-4 w-4" />, color: "text-primary" },
   secondary_not_billed: { icon: <Shield className="h-4 w-4" />, color: "text-primary" },
   denial_no_action: { icon: <XCircle className="h-4 w-4" />, color: "text-destructive" },
   paid_short: { icon: <TrendingDown className="h-4 w-4" />, color: "text-destructive" },
@@ -196,7 +197,7 @@ export function MissingMoneyDetail() {
   );
 }
 
-function CategoryDetailCard({ cat, navigate }: { cat: MissingMoneyCategorySummary; navigate: (path: string) => void }) {
+function CategoryDetailCard({ cat, navigate }: { cat: MissingMoneyCategorySummary; navigate: (path: string, opts?: { state?: unknown }) => void }) {
   const [open, setOpen] = useState(false);
   const config = CATEGORY_CONFIG[cat.category];
 
@@ -287,14 +288,18 @@ function CategoryDetailCard({ cat, navigate }: { cat: MissingMoneyCategorySummar
                           variant="outline"
                           className="h-6 text-[10px] px-2"
                           onClick={() => {
-                            if (cat.category === "no_pcr" || cat.category === "pcr_not_billed") {
+                            if (cat.category === "secondary_coverage_review") {
+                              navigate("/patients", { state: { coveragePatientId: item.patientId } });
+                            } else if (cat.category === "no_pcr" || cat.category === "pcr_not_billed") {
                               navigate(item.tripId ? `/pcr?tripId=${item.tripId}&mode=qa-fix` : "/trips");
                             } else {
                               navigate(item.claimId ? `/billing?claimId=${item.claimId}` : "/billing");
                             }
                           }}
                         >
-                          {cat.category === "no_pcr" || cat.category === "pcr_not_billed"
+                          {cat.category === "secondary_coverage_review"
+                            ? "Review coverage"
+                            : cat.category === "no_pcr" || cat.category === "pcr_not_billed"
                             ? "Open PCR"
                             : cat.category === "paid_short"
                               ? "Review Payment"

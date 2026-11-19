@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getDenialTranslation, isRecoverable } from "@/lib/denial-code-translations";
 import { evaluateUnderpayment, underpaymentSummaryLine } from "@/lib/underpayment";
+import { secondaryReviewPrompts, patientQualifiesForSecondaryBucket } from "@/lib/coverage/tie-in";
 import { useAuth } from "@/hooks/useAuth";
 import { useSimulationCompanyState } from "@/hooks/useIsSimulationCompany";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
@@ -25,12 +26,15 @@ export interface MissingMoneyItem {
   paidAmount?: number;
   /** Plain-English detail line shown in the row (paid-short). */
   note?: string;
+  /** Coverage review prompt only — opens that patient's Coverage tab via router state. */
+  patientId?: string;
 }
 
 export type MissingMoneyCategory =
   | "no_pcr"
   | "pcr_not_billed"
   | "no_followup"
+  | "secondary_coverage_review"
   | "secondary_not_billed"
   | "denial_no_action"
   | "paid_short";
@@ -175,6 +179,19 @@ export function useMissingMoneyScan() {
       const { data: paidClaims, error: paidShortError } = await paidShortQuery;
       if (paidShortError) throw paidShortError;
 
+      // ---- CHECK 4a: Secondary coverage found, awaiting review (not billable yet) ----
+      const { data: coverageRows, error: coverageError } = await supabase
+        .from("coverage_checks" as any)
+        .select("id, patient_id, check_type, status, payer_name, payer_member_id, reviewed, review_action, implied_cob_order, checked_at")
+        .eq("company_id", activeCompanyId)
+        .eq("check_type", "discovery")
+        .eq("status", "coverage_found")
+        .eq("implied_cob_order", "secondary")
+        .eq("reviewed", false)
+        .limit(500);
+      if (coverageError) throw coverageError;
+      const coveragePrompts = secondaryReviewPrompts((coverageRows ?? []) as any[]);
+
       // Gather all patient and truck IDs for enrichment
       const allTrips = [...(noPcrTrips ?? []) as any[], ...(pcrSubmittedTrips ?? []) as any[]];
       const allClaims = [...(agingClaims ?? []) as any[], ...(secondaryClaims ?? []) as any[], ...(deniedClaims ?? []) as any[], ...(paidClaims ?? []) as any[]];
@@ -191,6 +208,7 @@ export function useMissingMoneyScan() {
       const patientIds = [...new Set([
         ...allTrips.map((t: any) => t.patient_id),
         ...allClaims.map((c: any) => c.patient_id),
+        ...coveragePrompts.map((r: any) => r.patient_id),
       ].filter(Boolean))];
       const truckIds = [...new Set(allTrips.map((t: any) => t.truck_id).filter(Boolean))];
 
@@ -266,8 +284,19 @@ export function useMissingMoneyScan() {
       // For Check 4, filter to patients with secondary_payer
       const secondaryFiltered = ((secondaryClaims ?? []) as any[]).filter((c: any) => {
         const pat = patMap.get(c.patient_id);
-        return pat?.secondary_payer;
+        return patientQualifiesForSecondaryBucket(pat);
       });
+
+      const cat4aItems: MissingMoneyItem[] = coveragePrompts.map((r: any) => ({
+        id: r.id,
+        category: "secondary_coverage_review" as MissingMoneyCategory,
+        patientName: patName(r.patient_id),
+        payerName: r.payer_name ?? "Unknown",
+        runDate: String(r.checked_at).slice(0, 10),
+        amount: 0,
+        patientId: r.patient_id,
+        note: "Opportunity to review — not billable until confirmed as secondary.",
+      }));
 
       // Build category results
       const cat1Items: MissingMoneyItem[] = ((noPcrTrips ?? []) as any[]).map((t: any) => ({
@@ -382,6 +411,14 @@ export function useMissingMoneyScan() {
           amount: cat3Items.reduce((s, i) => s + i.amount, 0),
           items: cat3Items,
           route: "/billing",
+        },
+        {
+          category: "secondary_coverage_review",
+          label: "Secondary Coverage Found — Review",
+          count: cat4aItems.length,
+          amount: 0,
+          items: cat4aItems,
+          route: "/patients",
         },
         {
           category: "secondary_not_billed",

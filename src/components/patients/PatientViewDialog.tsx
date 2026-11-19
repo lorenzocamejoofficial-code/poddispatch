@@ -13,8 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { History, FileText, Truck } from "lucide-react";
+import { History, FileText, Truck, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { CoveragePanel } from "./CoveragePanel";
 import { openClaimTimeline } from "@/components/billing/ClaimTimelineDrawer";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -23,6 +24,7 @@ type Patient = Tables<"patients">;
 interface Props {
   patient: Patient | null;
   onOpenChange: (open: boolean) => void;
+  initialTab?: "profile" | "trips" | "claims" | "coverage";
 }
 
 interface TripRow {
@@ -78,7 +80,7 @@ function Row({
   );
 }
 
-export function PatientViewDialog({ patient, onOpenChange }: Props) {
+export function PatientViewDialog({ patient, onOpenChange, initialTab }: Props) {
   const navigate = useNavigate();
   const [, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState("profile");
@@ -91,11 +93,11 @@ export function PatientViewDialog({ patient, onOpenChange }: Props) {
   // Reset per patient
   useEffect(() => {
     if (!patient) return;
-    setTab("profile");
+    setTab(initialTab ?? "profile");
     setTrips(null);
     setClaims(null);
     setShowAllTrips(false);
-  }, [patient?.id]);
+  }, [patient?.id, initialTab]);
 
   // Lazy-load trips when Trips tab is opened
   useEffect(() => {
@@ -169,18 +171,21 @@ export function PatientViewDialog({ patient, onOpenChange }: Props) {
             {patient.first_name} {patient.last_name}
           </DialogTitle>
           <DialogDescription>
-            Read-only patient summary, trip history, and claim history.
+            Patient summary, trip and claim history, and coverage review.
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="grid grid-cols-3 w-full">
+          <TabsList className="grid grid-cols-4 w-full">
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="trips" className="gap-1">
               <Truck className="h-3.5 w-3.5" /> Trips
             </TabsTrigger>
             <TabsTrigger value="claims" className="gap-1">
               <FileText className="h-3.5 w-3.5" /> Claims
+            </TabsTrigger>
+            <TabsTrigger value="coverage" className="gap-1">
+              <ShieldCheck className="h-3.5 w-3.5" /> Coverage
             </TabsTrigger>
           </TabsList>
 
@@ -203,6 +208,10 @@ export function PatientViewDialog({ patient, onOpenChange }: Props) {
 
           <TabsContent value="claims" className="flex-1 overflow-y-auto mt-3">
             <ClaimsTab loading={loadingClaims} claims={claims} onRowClick={openClaim} />
+          </TabsContent>
+
+          <TabsContent value="coverage" className="flex-1 overflow-y-auto mt-3">
+            {tab === "coverage" && <CoveragePanel patientId={patient.id} />}
           </TabsContent>
         </Tabs>
       </DialogContent>

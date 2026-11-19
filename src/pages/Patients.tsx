@@ -3,7 +3,7 @@ import { IntakeAxes, IntakeFieldError } from "@/components/patients/IntakeAxes";
 import { intakeAxes, missingIntakeFields } from "@/lib/intake-axis-policy";
 import { normalizePayerKey } from "@/lib/payer-vocabulary";
 import { useEffect, useState, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { useAuth } from "@/hooks/useAuth";
@@ -103,6 +103,9 @@ export default function Patients() {
   const { companyName } = useCompanyName();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [viewPatient, setViewPatient] = useState<Patient | null>(null);
+  const [viewInitialTab, setViewInitialTab] = useState<"coverage" | undefined>(undefined);
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [templatesView, setTemplatesView] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -438,6 +441,19 @@ export default function Patients() {
     }));
     setDialogOpen(true);
   };
+
+  // Work-queue "Secondary coverage found — review" opens the Coverage tab.
+  // Patient id travels in router state, never the URL.
+  useEffect(() => {
+    const pid = (location.state as any)?.coveragePatientId;
+    if (!pid || patients.length === 0) return;
+    const target = patients.find((p) => p.id === pid);
+    if (!target) return;
+    setViewInitialTab("coverage");
+    setViewPatient(target);
+    navigate(location.pathname + location.search, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patients, location.state]);
 
   // Auto-open the editor when the page is reached with ?patientId=<id>
   // (e.g. from a "Fix in patient chart" link on the Money/Claims page).
@@ -2223,7 +2239,8 @@ export default function Patients() {
       {/* View Patient dialog — read-only profile, trips, claims */}
       <PatientViewDialog
         patient={viewPatient}
-        onOpenChange={(o) => { if (!o) setViewPatient(null); }}
+        initialTab={viewInitialTab}
+        onOpenChange={(o) => { if (!o) { setViewPatient(null); setViewInitialTab(undefined); } }}
       />
 
       {/* Claim timeline drawer — opened from Claims tab inside PatientViewDialog.
