@@ -1481,17 +1481,36 @@ export default function BillingAndClaims() {
     `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const goDenied = () => {
+    setSecondaryFilter(false);
     setActiveTab("claims");
     setStatusTab("denied");
     setStatusPage(1);
   };
 
   const goReadyToBill = () => {
+    setSecondaryFilter(false);
     setActiveTab("claims");
     setStatusTab("ready_to_bill");
     setStatusPage(1);
   };
 
+  const reviewSecondary = () => {
+    setActiveTab("claims");
+    setStatusTab("paid");
+    setStatusPage(1);
+    setSecondaryFilter(true);
+    setHideTestClaims(false);
+  };
+
+  const selectStatus = (status: ClaimTab) => {
+    setSecondaryFilter(false);
+    setStatusTab(status);
+    setStatusPage(1);
+  };
+
+  // A secondary worklist contains paid claims only. Keep the rendered tab and
+  // its list on the same axis even if an earlier selection was Denied.
+  const visibleStatusTab = secondaryFilter ? "paid" : statusTab;
 
   return (
     <AdminLayout>
@@ -1614,7 +1633,7 @@ export default function BillingAndClaims() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => { setActiveTab("claims"); setStatusTab("paid"); setStatusPage(1); setSecondaryFilter(prev => !prev); }}
+                  onClick={secondaryFilter ? () => setSecondaryFilter(false) : reviewSecondary}
                 >
                   {secondaryFilter ? "Clear filter" : "Review"}
                 </Button>
@@ -1760,7 +1779,7 @@ export default function BillingAndClaims() {
               CLAIM_COLUMNS.forEach(col => {
                 counts[col.status] = filteredAll.filter(c => tabForStatus(c.status) === col.status).length;
               });
-              const activeCol = CLAIM_COLUMNS.find(c => c.status === statusTab) ?? CLAIM_COLUMNS[0];
+              const activeCol = CLAIM_COLUMNS.find(c => c.status === visibleStatusTab) ?? CLAIM_COLUMNS[0];
               const colClaims = filteredAll.filter(c => tabForStatus(c.status) === activeCol.status);
               const totalPages = Math.max(1, Math.ceil(colClaims.length / STATUS_PAGE_SIZE));
               const safePage = Math.min(Math.max(1, statusPage), totalPages);
@@ -1771,25 +1790,25 @@ export default function BillingAndClaims() {
                   {/* 6-stage visual pipeline — shows where every claim sits */}
                   <BillingPipelineHeader
                     claims={filteredAll}
-                    activeStatus={statusTab}
-                    onSelect={(s) => { setStatusTab(s); setStatusPage(1); }}
+                    activeStatus={visibleStatusTab}
+                    onSelect={selectStatus}
                   />
                   {/* Timely filing watch — surfaces buried at-risk claims */}
                   <TimelyFilingStrip
                     claims={filteredAll as any}
                     onClickClaim={(claimId) => {
                       const c = filteredAll.find((x) => x.id === claimId);
-                      if (c) { setStatusTab(tabForStatus(c.status)); setStatusPage(1); openClaim(c); }
+                      if (c) { selectStatus(tabForStatus(c.status)); openClaim(c); }
                     }}
                   />
                   {/* Status pills */}
                   <div className="flex flex-wrap gap-2 border-b pb-3">
                     {CLAIM_COLUMNS.map(col => {
-                      const active = col.status === statusTab;
+                      const active = col.status === visibleStatusTab;
                       return (
                         <button
                           key={col.status}
-                          onClick={() => { setStatusTab(col.status); setStatusPage(1); }}
+                          onClick={() => selectStatus(col.status)}
                           className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                             active
                               ? "border-primary bg-primary text-primary-foreground shadow-sm"
@@ -1844,15 +1863,15 @@ export default function BillingAndClaims() {
                     ) : (
                       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {pageClaims.map(claim => (
-                        <button
+                        <article
                           key={claim.id}
-                          onClick={() => openClaim(claim)}
-                          className={`w-full rounded-md border p-3 text-left hover:border-primary/40 hover:shadow-sm transition-all ${
+                          className={`w-full rounded-md border text-left hover:border-primary/40 hover:shadow-sm transition-all ${
                             claim.is_test_submission
                               ? "bg-amber-50/40 dark:bg-amber-950/10 border-amber-400/50"
                               : "bg-card"
                           }`}
                         >
+                          <button type="button" onClick={() => openClaim(claim)} className="w-full p-3 text-left">
                           <div className="flex items-center justify-between gap-1 mb-1">
                             <p className="text-xs font-semibold text-foreground truncate">{claim.patient_name}</p>
                             <div className="flex items-center gap-1 shrink-0">
@@ -1939,11 +1958,6 @@ export default function BillingAndClaims() {
                             </div>
                           </div>
                           <p className="text-[10px] text-muted-foreground">{claim.run_date}</p>
-                          {claim.status === "paid" && claim.patient_secondary_payer && !claim.secondary_claim_generated && (
-                            <Badge variant="secondary" className="mt-1 max-w-full whitespace-normal text-[10px]">
-                              Secondary available · {fmtMoney(claim.patient_responsibility_amount ?? 0)}
-                            </Badge>
-                          )}
                           {/* Sub-label for statuses folded into another tab
                               (pending/forwarded → Submitted, reversal →
                               Needs Correction, blocked_payer_mapping →
@@ -2046,6 +2060,32 @@ export default function BillingAndClaims() {
                             )}
                           </div>
                         </button>
+                        {claim.status === "paid" && claim.patient_secondary_payer && !claim.secondary_claim_generated && (
+                          <div className="px-3 pb-3">
+                            <SecondaryClaimPanel
+                              compact
+                              claimId={claim.id}
+                              tripId={claim.trip_id}
+                              patientId={claim.patient_id}
+                              status={claim.status}
+                              amountPaid={claim.amount_paid}
+                              patientResponsibilityAmount={claim.patient_responsibility_amount ?? null}
+                              totalCharge={claim.total_charge}
+                              secondaryClaimGenerated={claim.secondary_claim_generated ?? false}
+                              runDate={claim.run_date}
+                              hcpcsCodes={claim.hcpcs_codes}
+                              hcpcsModifiers={claim.hcpcs_modifiers}
+                              originType={claim.origin_type}
+                              destinationType={claim.destination_type}
+                              icd10Codes={claim.icd10_codes ?? null}
+                              secondaryPayer={claim.patient_secondary_payer}
+                              secondaryMemberId={claim.patient_secondary_member_id ?? null}
+                              secondaryPayerId={claim.patient_secondary_payer_id ?? null}
+                              onGenerated={fetchData}
+                            />
+                          </div>
+                        )}
+                        </article>
                         ))}
                       </div>
                     )}

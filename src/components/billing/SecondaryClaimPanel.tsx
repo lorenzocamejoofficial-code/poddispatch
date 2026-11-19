@@ -25,6 +25,7 @@ interface SecondaryClaimPanelProps {
   secondaryMemberId: string | null;
   secondaryPayerId: string | null;
   onGenerated?: () => void;
+  compact?: boolean;
 }
 
 export function SecondaryClaimPanel({
@@ -46,6 +47,7 @@ export function SecondaryClaimPanel({
   secondaryMemberId,
   secondaryPayerId,
   onGenerated,
+  compact = false,
 }: SecondaryClaimPanelProps) {
   const [generated, setGenerated] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -58,6 +60,7 @@ export function SecondaryClaimPanel({
 
   if (!isPaid || !hasSecondary || secondaryClaimGenerated || generated) {
     if (generated) {
+      if (compact) return null;
       return (
         <div className="rounded-md border border-[hsl(var(--status-green))]/30 bg-[hsl(var(--status-green))]/5 p-3">
           <div className="flex items-center gap-2 text-sm">
@@ -71,17 +74,37 @@ export function SecondaryClaimPanel({
   }
 
   const handleGenerate = async () => {
+    if (busy) return;
     setBusy(true);
-    const res = await createSecondaryClaim(claimId);
-    setBusy(false);
-    if (!res.ok) {
-      toast({ title: "Could not create secondary claim", description: res.error, variant: "destructive" });
-      return;
+    try {
+      const res = await createSecondaryClaim(claimId);
+      if (!res.ok) {
+        toast({ title: "Could not create secondary claim", description: res.error, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Secondary claim created", description: "It's queued in Billing & Claims as ready_to_bill." });
+      setGenerated(true);
+      onGenerated?.();
+    } catch {
+      toast({ title: "Could not create secondary claim", description: "Please try again.", variant: "destructive" });
+    } finally {
+      setBusy(false);
     }
-    toast({ title: "Secondary claim created", description: "It's queued in Billing & Claims as ready_to_bill." });
-    setGenerated(true);
-    onGenerated?.();
   };
+
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        <Badge variant="secondary" className="max-w-full whitespace-normal text-[10px]">
+          Secondary available · ${patResp.toFixed(2)}
+        </Badge>
+        <Button size="sm" variant="outline" className="h-auto min-h-8 w-full gap-1.5 whitespace-normal text-left text-xs" onClick={handleGenerate} disabled={busy}>
+          {busy ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 shrink-0" />}
+          <span>{busy ? "Generating…" : `Generate secondary to ${secondaryPayer}`}</span>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-md border border-[hsl(var(--status-yellow))]/40 bg-[hsl(var(--status-yellow-bg))] p-3 space-y-3">

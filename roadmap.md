@@ -77,3 +77,8 @@
 - [x] Secondary Review selects Paid and resets pagination
 - [x] Paid cards surface secondary coverage and the existing patient-responsibility amount
 - [x] Verify all three UI flows with synthetic browser data; 1,348 tests pass and preview build OK (real-account verification unavailable: session mint could not match requesting account)
+
+# Roadmap — secondary review and card action re-fix
+- [x] Align the secondary filter with Paid and clear it when selecting other statuses
+- [x] Show the existing secondary generation action, payer and responsibility amount directly on paid cards
+- [x] Full suite: 1,351 tests pass; preview build OK; synthetic desktop/phone Review and generation flow verified without an editor. Real-account check unavailable: session mint could not match requesting account. Calculation logic and data protections unchanged.
