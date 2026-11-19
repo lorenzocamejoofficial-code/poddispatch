@@ -1204,7 +1204,7 @@ export default function TrucksCrews() {
 
         {/* Copy Week Dialog – extend current week's pattern forward */}
         <Dialog open={copyDialog} onOpenChange={setCopyDialog}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Extend Week Forward</DialogTitle>
               <DialogDescription>
