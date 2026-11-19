@@ -11,6 +11,7 @@
  */
 import { evaluateClaimReadiness, type ReadinessIssue } from "@/lib/claim-readiness";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 
 /** Build the exact ReadinessInputs shape the claim card uses. */
 export function buildReadinessInputs(claim: any) {
@@ -60,15 +61,16 @@ export function detectClaimBlockers(claim: any): ReadinessIssue[] {
  *
  * Used by the Denial Recovery Engine so that fixing a field in the patient
  * chart / trip / PCS panel and coming back clears the blocker here — no stale
- * cached row. RLS does the tenant scoping; no company filter is added client
- * side beyond what the policies already enforce.
+ * cached row. Explicit company scoping also isolates creator simulation reads.
  */
 export async function fetchClaimBlockerSnapshot(
   claimId: string,
 ): Promise<{ claim: any | null; blockers: ReadinessIssue[]; ok: boolean }> {
+  const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
   const { data: claimRow, error: claimErr } = await supabase
     .from("claim_records" as any)
     .select("*")
+    .eq("company_id", companyId)
     .eq("id", claimId)
     .maybeSingle();
 
@@ -87,6 +89,7 @@ export async function fetchClaimBlockerSnapshot(
           )
 
           .eq("id", c.patient_id)
+          .eq("company_id", companyId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
     c.trip_id
@@ -96,6 +99,7 @@ export async function fetchClaimBlockerSnapshot(
             "id, loaded_miles, signature_obtained, pcs_attached, origin_type, destination_type, loaded_at, dropped_at, trip_type, patient_mobility, stretcher_placement, odometer_at_destination, leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_pickup_address)",
           )
           .eq("id", c.trip_id)
+          .eq("company_id", companyId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);

@@ -3,8 +3,8 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import BillingAndClaims from "./BillingAndClaims";
 
-const { claims, patients, writes } = vi.hoisted(() => ({
-  claims: [] as any[], patients: [] as any[], writes: [] as any[],
+const { claims, patients, writes, trips, rates } = vi.hoisted(() => ({
+  claims: [] as any[], patients: [] as any[], writes: [] as any[], trips: [] as any[], rates: [] as any[],
 }));
 
 
@@ -25,9 +25,9 @@ vi.mock("@/integrations/supabase/client", () => ({
       const query: any = new Proxy({}, {
         get: (_, key) => {
           if (key === "then") return (resolve: (value: unknown) => void) => {
-            let data = table === "claim_records" ? claims : table === "patients" ? patients : [];
+            let data = table === "claim_records" ? claims : table === "patients" ? patients : table === "trip_records" ? trips : table === "charge_master" ? rates : [];
             if (update) {
-              const matching = claims.filter(c => filters.every(([op, field, value]) =>
+              const matching = data.filter(c => filters.every(([op, field, value]) =>
                 op === "in" ? value.includes(c[field]) : c[field] === value));
               writes.push({ table, update, filters });
               matching.forEach(c => Object.assign(c, update));
@@ -75,12 +75,33 @@ const clean = {
 };
 
 beforeEach(() => {
-  claims.splice(0); patients.splice(0); writes.splice(0);
+  claims.splice(0); patients.splice(0); writes.splice(0); trips.splice(0); rates.splice(0);
   patients.push({ id: "synthetic-patient", first_name: "Synthetic", last_name: "Patient",
     pickup_address: "100 Test St, Atlanta, GA 30301" });
 });
 
 describe("mount readiness reconciliation", () => {
+  it.each([{ diagnoses: [] }, { diagnoses: ["R53.1"] }])("Refresh respects shared diagnosis readiness for $diagnoses and never touches sent claims", async ({ diagnoses }) => {
+    claims.push({ ...clean, status: "needs_review", icd10_codes: diagnoses },
+      { ...clean, id: "sent", status: "submitted", icd10_codes: [] });
+    rates.push({ id: "rate", payer_type: "medicare", base_rate: 400, mileage_rate: 0, updated_at: new Date().toISOString() });
+    trips.push({ id: "synthetic-trip", company_id: "synthetic-company", patient_id: "synthetic-patient", run_date: "2026-11-19",
+      patient: { ...patients[0], dob: "1950-01-01", sex: "F", member_id: "TEST123", primary_payer: "medicare" },
+      origin_type: "Residence", destination_type: "Hospital", pickup_location: "100 Test St, Atlanta, GA 30301",
+      loaded_miles: 10, loaded_at: "2026-11-19T10:00:00Z", dropped_at: "2026-11-19T10:30:00Z",
+      signature_obtained: true, stretcher_placement: "ambulatory", patient_mobility: "ambulatory", odometer_at_destination: 100,
+      icd10_codes: diagnoses, service_level: "BLS", pcr_type: "nemt" });
+    render(<MemoryRouter><BillingAndClaims /></MemoryRouter>);
+    await screen.findByRole("button", { name: "Refresh" });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(writes.some(w => w.table === "claim_records" && w.update.hcpcs_codes)).toBe(true));
+    const refreshed = writes.find(w => w.table === "claim_records" && w.update.hcpcs_codes);
+    expect(refreshed.update.status).toBe(diagnoses.length ? "ready_to_bill" : "needs_review");
+    expect(refreshed.filters).toContainEqual(["eq", "company_id", "synthetic-company"]);
+    expect(claims[1].status).toBe("submitted");
+    expect(writes.filter(w => w.table === "claim_records").every(w => !w.filters.some(([op, field, value]: any[]) => op === "eq" && field === "id" && value === "sent"))).toBe(true);
+  });
+
   it.each([
     ["missing ICD-10", { icd10_codes: [] }],
     ["missing origin", { origin_type: null }],

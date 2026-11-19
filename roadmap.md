@@ -1,4 +1,5 @@
 # Roadmap — billing readiness reconciliation
+- [x] Close Refresh/Sync/manual status and database auto-promotion gaps; sent/settled claims excluded from Refresh, no data backfill. Shared readiness, company-scoped writes, 1,374 tests (including secondary/COB), build OK; live trigger definitions verified and reported sandbox claim remains needs_review.
 - [x] Diagnose mount effect, shared-gate drift, and write permissions before editing.
 - [x] Use card readiness for guarded, company-scoped status-only demotion; prevent promotion loops.
 - [x] Full suite: 1,372 tests and build pass. Authenticated sandbox verification moved seven blocked claims; reported claim ready_to_bill → needs_review; missing-ICD ready count 1 → 0. Temporary billing access removed.

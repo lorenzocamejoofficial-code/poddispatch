@@ -84,7 +84,7 @@ import { toast } from "sonner";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
-import { detectClaimBlockers } from "@/lib/claim-blockers";
+import { detectClaimBlockers, fetchClaimBlockerSnapshot } from "@/lib/claim-blockers";
 import { InfoTip } from "@/components/ui/info-tip";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
 import { BillingQueueView } from "@/components/billing/BillingQueueView";
@@ -614,7 +614,7 @@ export default function BillingAndClaims() {
   };
 
   // Supports oneoff runs by falling back to scheduling_legs oneoff fields
-  const buildClaimFromTrip = (t: any) => {
+  const buildClaimFromTrip = (t: any, existingClaim?: any) => {
     const leg = t.leg as any;
     const isOneoff = !t.patient_id && leg?.is_oneoff;
     const rawPayerType = t.patient?.primary_payer ?? (isOneoff ? leg?.oneoff_primary_payer : null) ?? "default";
@@ -660,6 +660,37 @@ export default function BillingAndClaims() {
       : (t.patient?.pickup_address ?? null);
     const addressIssue = validatePatientAddress(patientAddress);
 
+    const readinessClaim = {
+      ...existingClaim,
+      trip_id: t.id, patient_id: t.patient_id, run_date: t.run_date,
+      payer_type: payerType, payer_name: payerType,
+      member_id: t.patient?.member_id ?? (isOneoff ? leg?.oneoff_member_id : null) ?? null,
+      total_charge: base + miles + extras + wait, hcpcs_codes: codes,
+      icd10_codes: t.icd10_codes ?? [], diagnosis_codes: [],
+      origin_type: t.origin_type, destination_type: t.destination_type,
+      origin_zip: extractZip(t.pickup_location),
+      patient_name: t.patient ? `${t.patient.first_name ?? ""} ${t.patient.last_name ?? ""}`.trim() : leg?.oneoff_name,
+      patient_dob: existingClaim?.patient_dob ?? t.patient?.dob ?? leg?.oneoff_dob,
+      patient_sex: t.patient?.sex ?? leg?.oneoff_sex,
+      patient_address: patientAddress, leg,
+      stretcher_placement: t.stretcher_placement,
+      pcs_on_file: existingClaim?.pcs_on_file ?? t.patient?.pcs_on_file,
+      patient_prior_auth_utn: t.patient?.prior_auth_utn,
+      patient_prior_auth_period_start: t.patient?.prior_auth_period_start,
+      patient_prior_auth_period_end: t.patient?.prior_auth_period_end,
+      patient_standing_order: t.patient?.standing_order,
+      patient_recurrence_days: t.patient?.recurrence_days,
+      patient_hospice_enrolled: t.patient?.hospice_enrolled,
+      patient_hospice_election_date: t.patient?.hospice_election_date,
+      patient_terminal_illness_icd: t.patient?.terminal_illness_icd,
+      patient_pcs_signed_date: t.patient?.pcs_signed_date,
+      patient_pcs_expiration_date: t.patient?.pcs_expiration_date,
+    };
+    const hardIssues = detectClaimBlockers(readinessClaim);
+    if (hardIssues.length > 0) {
+      gateResult.level = "blocked";
+      gateResult.issues = [...new Set([...gateResult.issues, ...hardIssues.map(i => i.message)])];
+    }
     const claimStatus = (gateResult.level === "blocked" || gateResult.level === "review" || addressIssue || rateFlag) ? "needs_review" : "ready_to_bill";
     const issuesList = [...gateResult.issues];
     if (addressIssue) issuesList.push(addressIssue);
@@ -792,21 +823,20 @@ export default function BillingAndClaims() {
   };
 
   // Refresh existing claims against live trip data. Includes any non-finalized claim
-  // (not paid, not voided) plus any claim still missing HCPCS codes — that way claims
-  // created before recent fixes get repaired on the next Sync.
+  // Only refresh unsent, workable claims. Sent and settled records are untouched.
   // Skips claims where hcpcs_manually_set is true to preserve biller edits.
   const refreshExistingClaims = async () => {
     const refreshCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data: refreshableClaims } = await supabase
       .from("claim_records" as any)
-      .select("id, trip_id, status, hcpcs_codes, hcpcs_manually_set")
+      .select("*")
       .eq("company_id", refreshCompanyId)
-      .not("status", "in", "(paid,voided)");
+      .in("status", ["ready_to_bill", "needs_review", "needs_correction"]);
 
     // Skip claims where the biller has manually set HCPCS — protect their edits from being overwritten.
     const filtered = (refreshableClaims ?? []).filter((c: any) =>
       !c.hcpcs_manually_set && (
-        ["ready_to_bill", "needs_review", "needs_correction", "submitted", "denied"].includes(c.status)
+        ["ready_to_bill", "needs_review", "needs_correction"].includes(c.status)
         || !Array.isArray(c.hcpcs_codes) || c.hcpcs_codes.length === 0
       )
     );
@@ -819,7 +849,8 @@ export default function BillingAndClaims() {
     const tripIds = filtered.map((c: any) => c.trip_id).filter(Boolean);
     const { data: trips } = await supabase
       .from("trip_records" as any)
-      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_utn, pickup_address), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen, oneoff_pickup_address), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
+      .select("*, patient:patients!trip_records_patient_id_fkey(first_name, last_name, dob, primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_utn, prior_auth_period_start, prior_auth_period_end, pickup_address, pcs_on_file, pcs_signed_date, pcs_expiration_date, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen, oneoff_pickup_address), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions")
+      .eq("company_id", refreshCompanyId)
       .in("id", tripIds);
 
     if (!trips?.length) {
@@ -835,14 +866,14 @@ export default function BillingAndClaims() {
       const t = tripMap.get(claim.trip_id);
       if (!t) continue;
 
-      const { gateResult, claim: claimData } = buildClaimFromTrip(t);
+      const { claim: claimData } = buildClaimFromTrip(t, claim);
       // Preserve submitted/denied status — only upgrade workable claim states.
       const upgradable = ["ready_to_bill", "needs_review", "needs_correction"].includes(claim.status);
       const newStatus = upgradable
-        ? (gateResult.level === "clean" ? "ready_to_bill" : "needs_review")
+        ? claimData.status
         : claim.status;
 
-      await supabase
+      const { error: refreshError } = await supabase
         .from("claim_records" as any)
         .update({
           status: newStatus,
@@ -869,13 +900,20 @@ export default function BillingAndClaims() {
           patient_sex: claimData.patient_sex,
           auth_number: claimData.auth_number,
         } as any)
+        .eq("company_id", refreshCompanyId)
+        .eq("status", claim.status)
         .eq("id", claim.id);
+      if (refreshError) {
+        toast.error("A claim could not be refreshed. No success was recorded for that claim.");
+        continue;
+      }
 
       // Write computed HCPCS codes back to trip_record
       if (claim.trip_id && claimData.hcpcs_codes?.length) {
         await supabase
           .from("trip_records" as any)
           .update({ hcpcs_codes: claimData.hcpcs_codes, hcpcs_modifiers: claimData.hcpcs_modifiers } as any)
+          .eq("company_id", refreshCompanyId)
           .eq("id", claim.trip_id);
       }
 
@@ -908,16 +946,18 @@ export default function BillingAndClaims() {
 
   const autoPromoteNeedsReview = useCallback(async () => {
     if (chargeMaster.length === 0) return;
+    const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
 
     const candidates = claims.filter(
-      c => c.status === "needs_review" && c.trip_id && detectClaimBlockers(c).length === 0 && !autoPromotedRef.current.has(c.id),
+      c => (c as any).company_id === companyId && c.status === "needs_review" && c.trip_id && detectClaimBlockers(c).length === 0 && !autoPromotedRef.current.has(c.id),
     );
     if (candidates.length === 0) return;
     for (const c of candidates) autoPromotedRef.current.add(c.id);
 
     const { data: trips } = await supabase
       .from("trip_records" as any)
-      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_utn, pickup_address), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen, oneoff_pickup_address)")
+      .select("*, patient:patients!trip_records_patient_id_fkey(first_name, last_name, dob, primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_utn, prior_auth_period_start, prior_auth_period_end, pickup_address, pcs_on_file, pcs_signed_date, pcs_expiration_date, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen, oneoff_pickup_address)")
+      .eq("company_id", companyId)
       .in("id", candidates.map(c => c.trip_id));
 
     if (!trips?.length) return;
@@ -927,8 +967,8 @@ export default function BillingAndClaims() {
     for (const c of candidates) {
       const t = tripMap.get(c.trip_id);
       if (!t) continue;
-      const { gateResult, addressIssue } = buildClaimFromTrip(t);
-      if (gateResult.level === "clean" && !addressIssue) promoteIds.push(c.id);
+      const { claim: checkedClaim } = buildClaimFromTrip(t, c);
+      if (checkedClaim.status === "ready_to_bill") promoteIds.push(c.id);
     }
 
     if (promoteIds.length === 0) return;
@@ -936,10 +976,12 @@ export default function BillingAndClaims() {
     const { error } = await supabase
       .from("claim_records" as any)
       .update({ status: "ready_to_bill" } as any)
+      .eq("company_id", companyId)
       .in("id", promoteIds)
       .eq("status", "needs_review"); // belt-and-braces: never touch another bucket
 
-    if (!error) fetchData();
+    if (error) toast.error("Claims could not be moved to Ready to Bill. Check your billing permissions and refresh.");
+    else fetchData();
   }, [claims, chargeMaster, payerRulesMap, fetchData]);
 
   useEffect(() => { autoPromoteNeedsReview(); }, [autoPromoteNeedsReview]);
@@ -995,7 +1037,7 @@ export default function BillingAndClaims() {
     const syncCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const { data: trips } = await supabase
       .from("trip_records" as any)
-      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_utn, pickup_address), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen, oneoff_pickup_address), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions, icd10_codes, weight_lbs")
+      .select("*, patient:patients!trip_records_patient_id_fkey(first_name, last_name, dob, primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_utn, prior_auth_period_start, prior_auth_period_end, pickup_address, pcs_on_file, pcs_signed_date, pcs_expiration_date, standing_order, recurrence_days, hospice_enrolled, hospice_election_date, terminal_illness_icd), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen, oneoff_pickup_address), odometer_at_scene, odometer_at_destination, odometer_in_service, vehicle_id, stretcher_placement, patient_mobility, isolation_precautions, icd10_codes, weight_lbs")
       .eq("company_id", syncCompanyId)
       .in("status", ["ready_for_billing", "completed"] as any)
       .not("status", "eq", "cancelled")
@@ -1306,6 +1348,22 @@ export default function BillingAndClaims() {
   const executeClaimSave = async (handleOrphanSecondary = false) => {
     if (!selectedClaim) return;
     setSavingClaim(true);
+    const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+    if (editForm.status === "ready_to_bill") {
+      const snapshot = await fetchClaimBlockerSnapshot(selectedClaim.id);
+      if (!snapshot.ok || !snapshot.claim) {
+        toast.error("Could not verify readiness. Nothing was changed; refresh and try again.");
+        setSavingClaim(false);
+        return;
+      }
+      const blockers = detectClaimBlockers({ ...snapshot.claim,
+        hospice_unrelated_to_terminal: !!editForm.hospice_unrelated_to_terminal });
+      if (blockers.length > 0) {
+        toast.error("This claim has hard billing blockers. Resolve them before selecting Ready to Bill.");
+        setSavingClaim(false);
+        return;
+      }
+    }
 
     // Optimistic concurrency check
     if (claimOpenedAt) {
@@ -1355,7 +1413,13 @@ export default function BillingAndClaims() {
       await supabase.from("claim_adjustments" as any).insert(adjustments);
     }
 
-    await supabase.from("claim_records" as any).update(payload).eq("id", selectedClaim.id);
+    const { error: saveError } = await supabase.from("claim_records" as any).update(payload)
+      .eq("company_id", scopedCompanyId).eq("id", selectedClaim.id);
+    if (saveError) {
+      toast.error("Claim could not be saved. Check your billing permissions and try again.");
+      setSavingClaim(false);
+      return;
+    }
 
     // Fix 19: If confirmed, mark the secondary claim as needs_review
     if (handleOrphanSecondary && (selectedClaim as any).secondary_claim_id) {

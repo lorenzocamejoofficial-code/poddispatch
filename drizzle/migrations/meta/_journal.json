@@ -92,6 +92,13 @@
       "when": 1794184958606,
       "tag": "0012_truck_max_patient_weight",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795068003276,
+      "tag": "0013_stop_partial_pcr_claim_promotion",
+      "breakpoints": true
     }
   ]
 }
