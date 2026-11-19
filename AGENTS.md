@@ -26,4 +26,4 @@
 - Crew extension preview and writes share crewExtensionRange's selected seven-day source and contiguous destination — why: Sunday snapping and independent date labels can misrepresent the copied range.
 - Creator simulation entry points share enterCreatorSimulation and the existing guarded RPC before hard navigation to /dispatch — why: generic company switching reloads the creator home instead of the simulation workspace.
 - Leg/trip origin and destination location types come only from `src/lib/leg-location-types.ts` (actual sites + transport kind); unknown sites stay null — why: a hard-coded default produced wrong CMS O/D modifiers, and a blank lets the readiness gate block instead.
-- Coverage checks use the `CoverageProvider` seam (`supabase/functions/_shared/coverage/providers.ts`, per-company flag) and immutable `coverage_checks` rows; patient COB fields change only on an explicit review click — why: Office Ally plugs in without new UI; never auto-applied to billing.
+- Coverage checks go via the `CoverageProvider` seam (`_shared/coverage/providers.ts`); COB changes only on a review click — why: Office Ally drops in, no auto-billing.
