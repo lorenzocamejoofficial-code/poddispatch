@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { getLocalToday } from "@/lib/local-date";
+import { deriveRecurringLegTypes } from "@/lib/leg-location-types";
 
 /* ── Shared types ── */
 export interface LegDisplay {
@@ -381,6 +382,13 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       existingMap.get(l.patient_id)!.add(l.leg_type);
     }
 
+    const { data: facilityRows } = await supabase
+      .from("facilities")
+      .select("name, facility_type")
+      .eq("company_id", companyId);
+    const facilityTypeMap = new Map<string, string>();
+    for (const f of (facilityRows ?? []) as any[]) if (f.name && f.facility_type) facilityTypeMap.set(f.name, f.facility_type);
+
     const newLegs: any[] = [];
     let patientsAdded = 0;
 
@@ -407,9 +415,15 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
         : baseTreatmentMinutes > 0 ? baseTreatmentMinutes
         : defaultTreatmentMinutes;
 
-      // Determine origin/destination types for the legs
-      const originType = p.location_type ?? "Residence";
-      const destinationType = "Dialysis Facility"; // Default for A-leg destination
+      // Origin/destination types from the actual sites and transport kind
+      // (CMS Pub. 100-04 Ch. 15 §30.A); unknown stays null so the gate blocks.
+      const legTypes = deriveRecurringLegTypes({
+        transportType: p.transport_type,
+        patientLocationType: p.location_type,
+        pickupAddress: p.pickup_address,
+        dropoffFacility: p.dropoff_facility,
+        facilityTypeMap,
+      });
 
       let addedAny = false;
 
@@ -427,8 +441,8 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           notes: p.notes || null,
           run_date: selectedDate,
           company_id: companyId,
-          origin_type: originType,
-          destination_type: destinationType,
+          origin_type: legTypes.aOrigin,
+          destination_type: legTypes.aDestination,
           service_level: "BLS",
         });
         addedAny = true;
@@ -449,8 +463,8 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
           notes: p.notes || null,
           run_date: selectedDate,
           company_id: companyId,
-          origin_type: destinationType,
-          destination_type: originType,
+          origin_type: legTypes.bOrigin,
+          destination_type: legTypes.bDestination,
           service_level: "BLS",
         });
         addedAny = true;

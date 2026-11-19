@@ -205,3 +205,29 @@ describe("RSNAT enforcement in claim readiness", () => {
     expect(fieldSet(issues).has("prior_auth_utn")).toBe(false);
   });
 });
+
+describe("PCS required by transport type (42 CFR 410.40(e))", () => {
+  const pcsBlocks = (claim: any, patient: any = {}) =>
+    evaluateClaimReadiness({ claim: { ...baseClaim, ...claim } as any, patient } as any)
+      .filter((i) => i.severity === "block" && i.field === "pcs_certification_date");
+  it.each(["dialysis", "ift", "wound_care", "outpatient"])(
+    "blocks a Medicare %s claim with no PCS even when the toggle was never ticked", (trip_type) => {
+      expect(pcsBlocks({ trip_type, pcs_on_file: false }, { pcs_on_file: false })).toHaveLength(1);
+    });
+  it("also applies to Medicaid", () => {
+    expect(pcsBlocks({ trip_type: "wound_care", payer_type: "medicaid", payer_name: "GA Medicaid" })).toHaveLength(1);
+  });
+  it("blocks an expired chart PCS on an IFT claim with the toggle off", () => {
+    expect(pcsBlocks({ trip_type: "ift" }, { pcs_signed_date: "2025-11-01" })).toHaveLength(1);
+  });
+  it("passes when a current PCS date is on the chart", () => {
+    expect(pcsBlocks({ trip_type: "outpatient" }, { pcs_signed_date: "2026-02-10" })).toHaveLength(0);
+  });
+  it("does not apply to emergency, discharge, psych or self-pay transports", () => {
+    expect(pcsBlocks({ trip_type: "dialysis", hcpcs_codes: ["A0429"] })).toHaveLength(0);
+    expect(pcsBlocks({ trip_type: "dialysis", has_emergency_event: true })).toHaveLength(0);
+    expect(pcsBlocks({ trip_type: "discharge" })).toHaveLength(0);
+    expect(pcsBlocks({ trip_type: "psych_transport" })).toHaveLength(0);
+    expect(pcsBlocks({ trip_type: "dialysis", payer_type: "self_pay", payer_name: "Self pay" })).toHaveLength(0);
+  });
+});

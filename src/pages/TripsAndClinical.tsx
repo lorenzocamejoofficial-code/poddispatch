@@ -1,3 +1,4 @@
+import { resolveTripLocationType } from "@/lib/leg-location-types";
 import { TRIP_STATUS_LABELS } from "@/lib/trip-status";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -328,8 +329,11 @@ export default function TripsAndClinical() {
       // No existing trip — create new one, cascading all metadata from scheduling_leg
       const legOrigin = (s.leg as any)?.origin_type;
       const legDest = (s.leg as any)?.destination_type;
-      const originType = legOrigin || inferLocationType(s.leg?.pickup_location, facilityMap);
-      const destType = legDest || inferLocationType(s.leg?.destination_location, facilityMap);
+      // Legacy legs carry a hard-coded "Dialysis Facility" destination even on
+      // non-dialysis runs; resolveTripLocationType drops that wrong value and
+      // leaves unknown sites blank for the readiness gate (CMS Pub. 100-04 Ch. 15 §30.A).
+      const originType = resolveTripLocationType(legOrigin, s.leg?.pickup_location, s.leg?.trip_type, facilityMap);
+      const destType = resolveTripLocationType(legDest, s.leg?.destination_location, s.leg?.trip_type, facilityMap);
       const crewId = crewByTruckId.get(s.truck_id) ?? null;
       newTrips.push({
         slot_id: s.id,

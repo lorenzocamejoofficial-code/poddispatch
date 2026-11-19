@@ -25,3 +25,4 @@
 - Exclusive crew pickers share date-scoped assignment-pool filtering, retaining the edited assignment and excluding sibling seats — why: available resources must match existing atomic assignment guards without restricting reusable lookup selectors.
 - Crew extension preview and writes share crewExtensionRange's selected seven-day source and contiguous destination — why: Sunday snapping and independent date labels can misrepresent the copied range.
 - Creator simulation entry points share enterCreatorSimulation and the existing guarded RPC before hard navigation to /dispatch — why: generic company switching reloads the creator home instead of the simulation workspace.
+- Leg/trip origin and destination location types come only from `src/lib/leg-location-types.ts` (actual sites + transport kind); unknown sites stay null — why: a hard-coded default produced wrong CMS O/D modifiers, and a blank lets the readiness gate block instead.

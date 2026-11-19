@@ -5,7 +5,7 @@ import { evaluateClaimReadiness } from "./claim-readiness";
 const clean = {
   id: "synthetic-claim", patient_id: "synthetic-patient", trip_id: "synthetic-trip",
   patient_name: "Synthetic Patient", patient_dob: "1950-01-01", patient_sex: "F",
-  patient_address: "100 Test St, Atlanta, GA 30301", member_id: "TEST123",
+  patient_address: "100 Test St, Atlanta, GA 30301", member_id: "1EG4TE5MK73",
   payer_type: "medicare", payer_name: "Medicare", run_date: "2026-11-19",
   total_charge: 400, hcpcs_codes: ["A0428"], icd10_codes: ["R53.1"],
   origin_type: "Residence", destination_type: "Hospital", origin_zip: "30301",

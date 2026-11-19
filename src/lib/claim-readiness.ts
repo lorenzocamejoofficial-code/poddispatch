@@ -12,6 +12,8 @@
 import { parseAddressString, timelyFilingDays, type ClaimForEDI } from "./edi-837p-generator";
 import type { PayerResolution } from "./payer-directory-lookup";
 import { locationTypeCode } from "./ambulance-modifier";
+import { isValidMbi } from "./mbi";
+import { normalizeTransportKind } from "./transport-vocabulary";
 import { evaluatePcsConsistency } from "./pcs-consistency";
 
 export type ReadinessStage = "scheduling" | "pcr" | "biller" | "export";
@@ -329,6 +331,37 @@ export function evaluateRsnatHistoryEligibility(
  *  Medicare payer AND (destination is a dialysis facility OR scheduled
  *  standing order OR recurring ≥3 times per week). The Medicare gate is
  *  required — non-Medicare standing orders never fire RSNAT. */
+/** Original-Medicare claim (not name matching, so Medicare Advantage plans
+ *  with their own member IDs are not held to the MBI format). */
+function isMedicarePayer(claim: ReadinessInputs["claim"]): boolean {
+  const t = String(claim.payer_type ?? "").toLowerCase().trim();
+  const c = String((claim as any).payer_class ?? "").toLowerCase().trim();
+  return t === "medicare" || c === "medicare";
+}
+
+/**
+ * Transport kinds that are scheduled, non-emergency ambulance services and
+ * therefore need a physician certification statement. 42 CFR 410.40(e)(1)
+ * (repetitive scheduled — e.g. dialysis, wound care, recurring outpatient)
+ * and (e)(2) (non-repetitive scheduled — e.g. IFT). Discharge and psych
+ * moves are excluded: they are unscheduled or follow separate authorization.
+ */
+export const PCS_REQUIRED_TRANSPORT_KINDS = new Set(["dialysis", "ift", "wound_care", "outpatient"]);
+const EMERGENCY_HCPCS = new Set(["A0427", "A0429"]);
+
+/** True when the PCS rule applies by transport type, independent of the
+ *  "PCS on file" toggle. Medicare (42 CFR 410.40) and Medicaid only;
+ *  emergency transports never need a PCS. */
+export function isPcsRequiredByTransport(claim: ReadinessInputs["claim"]): boolean {
+  const kind = normalizeTransportKind(String((claim as any).transport_kind ?? (claim as any).trip_type ?? ""));
+  if (!kind || !PCS_REQUIRED_TRANSPORT_KINDS.has(kind)) return false;
+  if ((claim as any).has_emergency_event === true) return false;
+  if ((claim.hcpcs_codes ?? []).some((c) => EMERGENCY_HCPCS.has(String(c).trim().toUpperCase()))) return false;
+  const t = String(claim.payer_type ?? "").toLowerCase().trim();
+  const c = String((claim as any).payer_class ?? "").toLowerCase().trim();
+  return t === "medicare" || t === "medicaid" || c === "medicare" || c === "medicaid";
+}
+
 export function isRsnatTransport(
   claim: ReadinessInputs["claim"],
   patient?: ReadinessInputs["patient"],
@@ -395,6 +428,15 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
     push({
       field: "member_id", severity: "block",
       message: "Missing member ID",
+      fixPath: patientFix("member_id"),
+      fixLabel: "Fix in patient chart",
+    });
+  }
+  else if (isMedicarePayer(claim) && !isValidMbi(mid)) {
+    // CMS MBI format (11 characters); a malformed MBI is rejected by the MAC.
+    push({
+      field: "member_id", severity: "block",
+      message: "Medicare member ID is not a valid 11-character MBI",
       fixPath: patientFix("member_id"),
       fixLabel: "Fix in patient chart",
     });
@@ -570,7 +612,9 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
   //       this, an expired PCS was only a soft warning in the pre-submit
   //       checklist — the queue path let it through to the payer.
   const pcsAsserted = claim.pcs_on_file === true || inputs.patient?.pcs_on_file === true;
-  if (pcsAsserted) {
+  // 42 CFR 410.40(e): scheduled non-emergency transport needs a PCS whether
+  // or not the toggle was ticked, so the rule is also keyed to transport type.
+  if (pcsAsserted || isPcsRequiredByTransport(claim)) {
     const pcsFixPath = claim.id ? `/billing?claimId=${claim.id}&focus=pcs` : "/billing?focus=pcs";
     const certDate = String(claim.pcs_certification_date ?? "").trim();
     const chartSigned = String(inputs.patient?.pcs_signed_date ?? "").trim();
@@ -579,7 +623,9 @@ export function evaluateClaimReadiness(inputs: ReadinessInputs): ReadinessIssue[
         field: "pcs_certification_date",
         severity: "block",
         stage: "biller",
-        message: "PCS certification date missing",
+        message: pcsAsserted
+          ? "PCS certification date missing"
+          : "PCS required for scheduled non-emergency transport (42 CFR 410.40), none on file",
         fixPath: pcsFixPath,
         fixLabel: "Open PCS panel",
       });

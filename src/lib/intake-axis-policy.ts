@@ -1,5 +1,6 @@
 import { normalizeTransportKind, type TransportKind } from "@/lib/transport-vocabulary";
 import { normalizePayerClass } from "@/lib/payer-class";
+import { isValidMbi } from "@/lib/mbi";
 import { getMissingPatientRequirements, type PatientRequiredField } from "@/lib/pcr-dropdowns";
 
 export const INTAKE_TRANSPORT_OPTIONS: { value: TransportKind; label: string }[] = [
@@ -56,6 +57,12 @@ export function missingIntakeFields(form: Record<string, any>, mode: "recurring"
       require("bh_authorizing_facility", "Authorizing facility");
       if (form.bh_authorization_type?.includes("1013") && !form.bh_1013_received) issues.push({ field: "bh_1013_received", label: "1013 received" });
     }
+  }
+  // Member ID is required on both paths for insured payers (837P NM1*IL09).
+  if (axes.insurance) require("member_id", "Member ID");
+  // Medicare additionally requires a CMS-format MBI (see src/lib/mbi.ts).
+  if (axes.payerClass === "medicare" && present(form.member_id) && !isValidMbi(form.member_id)) {
+    issues.push({ field: "member_id", label: "Medicare MBI (11-character CMS format)" });
   }
   return issues.filter((r, i, rows) => rows.findIndex(x => x.field === r.field) === i);
 }

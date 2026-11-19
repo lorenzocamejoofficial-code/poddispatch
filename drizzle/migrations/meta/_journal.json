@@ -99,6 +99,13 @@
       "when": 1795068003276,
       "tag": "0013_stop_partial_pcr_claim_promotion",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795117629278,
+      "tag": "0014_auto_claim_copy_rsnat_utn",
+      "breakpoints": true
     }
   ]
 }

@@ -69,7 +69,7 @@ const clean = {
   patient_id: "synthetic-patient", run_date: "2026-11-19", status: "ready_to_bill",
   payer_type: "medicare", payer_name: "Medicare", total_charge: 400,
   base_charge: 400, mileage_charge: 0, extras_charge: 0,
-  member_id: "TEST123", patient_dob: "1950-01-01", patient_sex: "F",
+  member_id: "1EG4TE5MK73", patient_dob: "1950-01-01", patient_sex: "F",
   hcpcs_codes: ["A0428"], icd10_codes: ["R53.1"], origin_type: "Residence",
   destination_type: "Hospital", origin_zip: "30301",
 };
@@ -86,7 +86,7 @@ describe("mount readiness reconciliation", () => {
       { ...clean, id: "sent", status: "submitted", icd10_codes: [] });
     rates.push({ id: "rate", payer_type: "medicare", base_rate: 400, mileage_rate: 0, updated_at: new Date().toISOString() });
     trips.push({ id: "synthetic-trip", company_id: "synthetic-company", patient_id: "synthetic-patient", run_date: "2026-11-19",
-      patient: { ...patients[0], dob: "1950-01-01", sex: "F", member_id: "TEST123", primary_payer: "medicare" },
+      patient: { ...patients[0], dob: "1950-01-01", sex: "F", member_id: "1EG4TE5MK73", primary_payer: "medicare" },
       origin_type: "Residence", destination_type: "Hospital", pickup_location: "100 Test St, Atlanta, GA 30301",
       loaded_miles: 10, loaded_at: "2026-11-19T10:00:00Z", dropped_at: "2026-11-19T10:30:00Z",
       signature_obtained: true, stretcher_placement: "ambulatory", patient_mobility: "ambulatory", odometer_at_destination: 100,

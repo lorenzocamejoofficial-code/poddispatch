@@ -136,3 +136,15 @@ describe("claim-parity harness (baseline)", () => {
     expect(ediB).not.toBe(ediA);
   });
 });
+describe("RSNAT UTN on auto-created claims reaches the 837P", () => {
+  // auto_create_claim_on_pcr_submit copies patients.prior_auth_utn into
+  // claim_records.auth_number; the export reads that column as-is.
+  const providerMap = new Map([["co-1", provider]]);
+  it("emits REF*G1 with the UTN when auth_number is set", () => {
+    const edi = generateEDI837P([fixtureClaim({ auth_number: "UTNSYNTH0000001" })], providerMap, submitter);
+    expect(edi).toContain("REF*G1*UTNSYNTH0000001");
+  });
+  it("emits no REF*G1 when no UTN is on the claim", () => {
+    expect(generateEDI837P([fixtureClaim()], providerMap, submitter)).not.toContain("REF*G1");
+  });
+});
