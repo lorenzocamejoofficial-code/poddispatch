@@ -1,3 +1,9 @@
+# Roadmap — billing readiness reconciliation
+- [x] Diagnose mount effect, shared-gate drift, and write permissions before editing.
+- [x] Use card readiness for guarded, company-scoped status-only demotion; prevent promotion loops.
+- [x] Full suite: 1,372 tests and build pass. Authenticated sandbox verification moved seven blocked claims; reported claim ready_to_bill → needs_review; missing-ICD ready count 1 → 0. Temporary billing access removed.
+- [ ] Browser board readback — blocked by mandatory MFA enrollment for the temporary account; mount behavior verified in component tests, real database write verified as a signed-in biller.
+
 # Roadmap — contained scheduling and simulation fixes
 - [x] Filter exclusive crew assignment pools, including manual PCR setup; retain existing assignment guards.
 - [x] Continue a selected seven-day source range immediately forward with explicit source/destination dates.

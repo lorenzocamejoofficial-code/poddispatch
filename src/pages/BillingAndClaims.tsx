@@ -84,7 +84,6 @@ import { toast } from "sonner";
 import { PCRTooltip } from "@/components/pcr/PCRTooltip";
 import { ADMIN_TOOLTIPS } from "@/lib/admin-tooltips";
 import { CleanTripBadge } from "@/components/billing/CleanTripBadge";
-import { evaluateClaimReadiness } from "@/lib/claim-readiness";
 import { detectClaimBlockers } from "@/lib/claim-blockers";
 import { InfoTip } from "@/components/ui/info-tip";
 import { useFocusScroll } from "@/lib/use-focus-scroll";
@@ -911,7 +910,7 @@ export default function BillingAndClaims() {
     if (chargeMaster.length === 0) return;
 
     const candidates = claims.filter(
-      c => c.status === "needs_review" && c.trip_id && !autoPromotedRef.current.has(c.id),
+      c => c.status === "needs_review" && c.trip_id && detectClaimBlockers(c).length === 0 && !autoPromotedRef.current.has(c.id),
     );
     if (candidates.length === 0) return;
     for (const c of candidates) autoPromotedRef.current.add(c.id);
@@ -946,12 +945,12 @@ export default function BillingAndClaims() {
   useEffect(() => { autoPromoteNeedsReview(); }, [autoPromoteNeedsReview]);
 
   /**
-   * Demotion pass — the mirror image of the promoter, same gate.
+   * Demotion pass — uses exactly the enriched claim and gate shown on cards.
    *
    * Any writer that stamps `ready_to_bill` on a claim that is actually
    * hard-blocked would surface a red BLOCKED card inside Ready to Bill. This
-   * pass re-runs the SAME `buildClaimFromTrip` gate (no duplicated blocker
-   * logic) over `ready_to_bill` claims and sends the hard-blocked ones back to
+   * pass re-runs `detectClaimBlockers` (no duplicated blocker logic)
+   * over `ready_to_bill` claims and sends the hard-blocked ones back to
    * `needs_review`.
    *
    * Strictly one-directional and status-only: it reads only `ready_to_bill`
@@ -961,40 +960,30 @@ export default function BillingAndClaims() {
   const autoDemotedRef = useRef<Set<string>>(new Set());
 
   const demoteBlockedReadyToBill = useCallback(async () => {
-    if (chargeMaster.length === 0) return;
-
+    if (loading || !simFlagResolved) return;
+    const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
     const candidates = claims.filter(
-      c => c.status === "ready_to_bill" && c.trip_id && !autoDemotedRef.current.has(c.id),
+      c => (c as any).company_id === companyId && c.status === "ready_to_bill" &&
+        detectClaimBlockers(c).length > 0 && !autoDemotedRef.current.has(c.id),
     );
     if (candidates.length === 0) return;
     for (const c of candidates) autoDemotedRef.current.add(c.id);
-
-    const { data: trips } = await supabase
-      .from("trip_records" as any)
-      .select("*, patient:patients!trip_records_patient_id_fkey(primary_payer, member_id, bariatric, oxygen_required, auth_required, auth_expiration, sex, prior_auth_utn, pickup_address), leg:scheduling_legs!trip_records_leg_id_fkey(is_oneoff, oneoff_name, oneoff_primary_payer, oneoff_member_id, oneoff_dob, oneoff_sex, oneoff_oxygen, oneoff_pickup_address)")
-      .in("id", candidates.map(c => c.trip_id));
-
-    if (!trips?.length) return;
-    const tripMap = new Map((trips as any[]).map((t: any) => [t.id, t]));
-
-    const demoteIds: string[] = [];
-    for (const c of candidates) {
-      const t = tripMap.get(c.trip_id);
-      if (!t) continue;
-      const { gateResult } = buildClaimFromTrip(t);
-      if (gateResult.level === "blocked") demoteIds.push(c.id);
-    }
-
-    if (demoteIds.length === 0) return;
-
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("claim_records" as any)
       .update({ status: "needs_review" } as any)
-      .in("id", demoteIds)
-      .eq("status", "ready_to_bill"); // belt-and-braces: never touch another bucket
+      .eq("company_id", companyId)
+      .in("id", candidates.map(c => c.id))
+      .eq("status", "ready_to_bill") // never touch another bucket
+      .select("id");
 
-    if (!error) fetchData();
-  }, [claims, chargeMaster, payerRulesMap, fetchData]);
+    if (error || !updated?.length) {
+      toast.error("Blocked claims could not be moved to Needs Review. Check your billing permissions and refresh to retry.");
+      return;
+    }
+    fetchData();
+  }, [claims, loading, simFlagResolved, fetchData]);
+
+  useEffect(() => { autoDemotedRef.current.clear(); }, [activeCompanyId]);
 
   useEffect(() => { demoteBlockedReadyToBill(); }, [demoteBlockedReadyToBill]);
 
