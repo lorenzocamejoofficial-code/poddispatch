@@ -20,6 +20,7 @@ import { TimelineTrigger } from "@/components/billing/ClaimTimelineDrawer";
 import { fetchClaimBlockerSnapshot } from "@/lib/claim-blockers";
 import type { ReadinessIssue } from "@/lib/claim-readiness";
 import { Link } from "react-router-dom";
+import { reconcileDenialChecklist, type DenialChecklistItem } from "@/lib/denial-checklist";
 import { RefreshCw, ArrowRight } from "lucide-react";
 
 /* ---------- denial-specific checklists ---------- */
@@ -56,7 +57,7 @@ function getChecklistForDenial(
         { id: "icd10", label: "Verify ICD-10 codes are present on the trip record", fields: ["icd10_codes"], fixPath: pcr("icd10"), fixLabel: "Open trip record" },
         { id: "member_id", label: "Verify member ID matches the insurance card", fields: ["member_id"], fixPath: patient("member_id"), fixLabel: "Open patient chart" },
         { id: "timestamps", label: "Verify all required timestamps are present (dispatch, scene, left scene, arrived, in service)", fields: ["dispatch_time", "at_scene_time", "left_scene_time", "arrived_dropoff_at", "in_service_time"], fixPath: pcr("times"), fixLabel: "Open trip record" },
-        { id: "origin_dest", label: "Verify origin and destination types are set", fixPath: pcr("origin_type"), fixLabel: "Open trip record" },
+        { id: "origin_dest", label: "Verify origin and destination types are set", fields: ["origin_type", "destination_type"], fixPath: pcr("origin_type"), fixLabel: "Open trip record" },
         { id: "med_necessity", label: "Verify medical necessity is documented", fixPath: pcr("narrative"), fixLabel: "Open trip record" },
       ];
     case "CO-4":
@@ -201,7 +202,7 @@ const LOCATION_TYPES = ["residence", "dialysis_facility", "hospital", "snf", "as
 export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, onOpenPcsPanel }: DenialRecoveryEngineProps) {
   const { user, activeCompanyId } = useAuth();
   const translation = claim.denial_code ? getDenialTranslation(claim.denial_code) : null;
-  const checklist = useMemo(
+  const carcChecklist = useMemo(
     () =>
       getChecklistForDenial(claim.denial_code ?? "", translation, {
         tripId: claim.trip_id ?? null,
@@ -269,7 +270,6 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
     }
   }, [open, claim.id]);
 
-  const allChecked = checklist.length > 0 && checklist.every(c => checked[c.id]);
 
   /* ---- Real detected field blockers (shared with the claim card) ----------
    * These are NOT the CARC guidance above. They come from the same
@@ -296,6 +296,21 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
     setBlockersLoading(false);
   }, [claim.id]);
 
+
+  // The actionable checklist: the claim's real blockers (same as the claim
+  // card) plus CARC judgment steps. CARC field steps are dropped so filled-in
+  // fields never show as work. Until a verified read exists, only judgment
+  // steps show — never phantom field items.
+  const checklist: DenialChecklistItem[] = useMemo(
+    () =>
+      reconcileDenialChecklist(carcChecklist, blockerRefreshedAt > 0 ? blockers : [], {
+        tripId: claim.trip_id ?? null,
+        patientId: (claim as any).patient_id ?? null,
+        claimId: claim.id,
+      }),
+    [carcChecklist, blockers, blockerRefreshedAt, claim.trip_id, claim.id, (claim as any).patient_id],
+  );
+  const allChecked = checklist.length > 0 && checklist.every(c => !c.blocker && checked[c.id]);
 
   useEffect(() => {
     if (open) void refreshBlockers();
@@ -661,17 +676,17 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
               Payer reason &amp; recovery steps
             </h3>
             <p className="text-xs text-muted-foreground">
-              Each step links straight to the screen that fixes it. Steps tied to a field below
-              cross themselves off once that field has a value; the rest are judgment calls you
-              tick yourself. Ticking a step does not unlock resubmission — the blocker list above
-              does that.
+              Steps for this claim: each field that is actually missing (the same list as the claim
+              card) plus the payer-reason steps that need your judgment. Missing-field steps clear
+              when the field is fixed and re-checked; tick the judgment steps yourself. Ticking does
+              not unlock resubmission — the blocker list above does that.
             </p>
             <div className="space-y-2">
               {checklist.map(item => {
-                const inEditor = (item.fields ?? []).filter(f => editableFields.includes(f));
+                const inEditor = item.blocker ? [] : (item.fields ?? []).filter(f => editableFields.includes(f));
                 const autoDone =
                   inEditor.length > 0 && inEditor.every(f => (editFields[f] ?? "").trim() !== "");
-                const done = autoDone || !!checked[item.id];
+                const done = !item.blocker && (autoDone || !!checked[item.id]);
                 return (
                   <div
                     key={item.id}
@@ -679,7 +694,8 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
                   >
                     <Checkbox
                       checked={done}
-                      disabled={autoDone}
+                      disabled={autoDone || item.blocker}
+                      aria-label={item.blocker ? "Clears when the field is fixed and re-checked" : undefined}
                       onCheckedChange={v => setChecked(prev => ({ ...prev, [item.id]: !!v }))}
                       className="mt-0.5"
                     />
@@ -706,6 +722,18 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
                         Fix here
                         <ArrowRight className="h-3 w-3" />
                       </button>
+                    ) : item.blocker && item.fixLabel === "Open PCS panel" && onOpenPcsPanel ? (
+                      <button
+                        type="button"
+                        className="shrink-0 inline-flex items-center gap-1 text-xs text-primary underline hover:no-underline"
+                        onClick={() => {
+                          onOpenPcsPanel(claim.trip_id, (claim as any).patient_id ?? null);
+                          onOpenChange(false);
+                        }}
+                      >
+                        Open PCS panel
+                        <ArrowRight className="h-3 w-3" />
+                      </button>
                     ) : item.fixPath ? (
                       <Link
                         to={item.fixPath}
@@ -723,6 +751,7 @@ export function DenialRecoveryEngine({ claim, open, onOpenChange, onComplete, on
             </div>
             <p className="text-xs text-muted-foreground">
               {checklist.filter(item => {
+                if (item.blocker) return false;
                 const inEditor = (item.fields ?? []).filter(f => editableFields.includes(f));
                 return (inEditor.length > 0 && inEditor.every(f => (editFields[f] ?? "").trim() !== "")) || !!checked[item.id];
               }).length}/{checklist.length} completed
