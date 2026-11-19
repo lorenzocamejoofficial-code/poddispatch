@@ -1793,6 +1793,7 @@ export type Database = {
         Row: {
           company_id: string
           company_name: string
+          coverage_provider: string
           dialysis_b_leg_buffer_minutes: number
           discharge_buffer_minutes: number
           enforce_run_gap_minutes: boolean
@@ -1812,6 +1813,7 @@ export type Database = {
         Insert: {
           company_id: string
           company_name?: string
+          coverage_provider?: string
           dialysis_b_leg_buffer_minutes?: number
           discharge_buffer_minutes?: number
           enforce_run_gap_minutes?: boolean
@@ -1831,6 +1833,7 @@ export type Database = {
         Update: {
           company_id?: string
           company_name?: string
+          coverage_provider?: string
           dialysis_b_leg_buffer_minutes?: number
           discharge_buffer_minutes?: number
           enforce_run_gap_minutes?: boolean
@@ -1909,6 +1912,90 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coverage_checks: {
+        Row: {
+          check_type: string
+          checked_at: string
+          company_id: string
+          confidence: string | null
+          coverage_end: string | null
+          coverage_start: string | null
+          created_at: string
+          id: string
+          implied_cob_order: string
+          patient_id: string
+          payer_member_id: string | null
+          payer_name: string | null
+          plan_name: string | null
+          raw_response: Json | null
+          review_action: string | null
+          reviewed: boolean
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source: string
+          status: string
+        }
+        Insert: {
+          check_type: string
+          checked_at?: string
+          company_id: string
+          confidence?: string | null
+          coverage_end?: string | null
+          coverage_start?: string | null
+          created_at?: string
+          id?: string
+          implied_cob_order?: string
+          patient_id: string
+          payer_member_id?: string | null
+          payer_name?: string | null
+          plan_name?: string | null
+          raw_response?: Json | null
+          review_action?: string | null
+          reviewed?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source: string
+          status: string
+        }
+        Update: {
+          check_type?: string
+          checked_at?: string
+          company_id?: string
+          confidence?: string | null
+          coverage_end?: string | null
+          coverage_start?: string | null
+          created_at?: string
+          id?: string
+          implied_cob_order?: string
+          patient_id?: string
+          payer_member_id?: string | null
+          payer_name?: string | null
+          plan_name?: string | null
+          raw_response?: Json | null
+          review_action?: string | null
+          reviewed?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_checks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coverage_checks_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
         ]

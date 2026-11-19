@@ -1,0 +1,2 @@
+ALTER TABLE public.coverage_checks DROP CONSTRAINT coverage_checks_company_id_fkey;
+ALTER TABLE public.coverage_checks ADD CONSTRAINT coverage_checks_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
