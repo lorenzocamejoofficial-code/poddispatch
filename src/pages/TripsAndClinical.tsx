@@ -982,13 +982,30 @@ export default function TripsAndClinical() {
               <div className="rounded-md border bg-muted/30 p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Auto HCPCS Codes</p>
                 {(() => {
-                  const { codes, modifiers } = computeHcpcsCodes({
-                    service_level: form.service_level,
-                    loaded_miles: form.loaded_miles ? parseFloat(form.loaded_miles) : null,
-                    wait_time_minutes: form.wait_time_minutes ? parseInt(form.wait_time_minutes) : null,
-                    oxygen_required: selectedTrip.oxygen_required,
-                    bariatric: selectedTrip.bariatric,
-                  });
+                  let codes: string[] = [];
+                  let modifiers: string[] = [];
+                  let previewError: string | null = null;
+                  try {
+                    ({ codes, modifiers } = computeHcpcsCodes({
+                      service_level: form.service_level,
+                      loaded_miles: form.loaded_miles ? parseFloat(form.loaded_miles) : null,
+                      wait_time_minutes: form.wait_time_minutes ? parseInt(form.wait_time_minutes) : null,
+                      oxygen_required: selectedTrip.oxygen_required,
+                      bariatric: selectedTrip.bariatric,
+                      origin_type: form.origin_type || null,
+                      destination_type: form.destination_type || null,
+                    }));
+                  } catch {
+                    previewError = "Set origin and destination types to preview billing codes.";
+                  }
+                  if (previewError) {
+                    return (
+                      <p className="text-xs text-[hsl(var(--status-yellow))] flex items-center gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        {previewError}
+                      </p>
+                    );
+                  }
                   return (
                     <div className="flex flex-wrap gap-1.5">
                       {codes.map(c => (

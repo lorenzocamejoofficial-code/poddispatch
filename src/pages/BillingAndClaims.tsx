@@ -638,18 +638,26 @@ export default function BillingAndClaims() {
     const extras = (t.patient?.oxygen_required || (isOneoff && leg?.oneoff_oxygen) ? Number(rate?.oxygen_fee ?? 0) : 0)
       + (t.patient?.bariatric ? Number(rate?.bariatric_fee ?? 0) : 0);
 
-    const { codes, modifiers: mods } = computeHcpcsCodes({
-      pcr_type: t.pcr_type,
-      service_level: t.service_level,
-      loaded_miles: t.loaded_miles,
-      wait_time_minutes: t.wait_time_minutes,
-      oxygen_required: t.patient?.oxygen_required || (isOneoff && leg?.oneoff_oxygen),
-      bariatric: t.patient?.bariatric,
-      equipment_used_json: t.equipment_used_json,
-      destination_type: t.destination_type,
-      origin_type: t.origin_type,
-      assessment_json: t.assessment_json,
-    });
+    // Guard: a trip with blank/unmapped origin/destination types must not crash
+    // the board — computeCleanTripStatus already flags those as blockers.
+    let codes: string[] = [];
+    let mods: string[] = [];
+    try {
+      ({ codes, modifiers: mods } = computeHcpcsCodes({
+        pcr_type: t.pcr_type,
+        service_level: t.service_level,
+        loaded_miles: t.loaded_miles,
+        wait_time_minutes: t.wait_time_minutes,
+        oxygen_required: t.patient?.oxygen_required || (isOneoff && leg?.oneoff_oxygen),
+        bariatric: t.patient?.bariatric,
+        equipment_used_json: t.equipment_used_json,
+        destination_type: t.destination_type,
+        origin_type: t.origin_type,
+        assessment_json: t.assessment_json,
+      }));
+    } catch {
+      // leave codes/mods empty; the readiness gate surfaces the missing types
+    }
 
     // Address validation — patient must have a complete street address. One-off runs
     // store the patient address on the trip itself (pickup_location), with the leg's
