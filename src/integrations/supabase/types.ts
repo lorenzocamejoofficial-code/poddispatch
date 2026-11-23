@@ -1925,9 +1925,11 @@ export type Database = {
           coverage_end: string | null
           coverage_start: string | null
           created_at: string
+          group_number: string | null
           id: string
           implied_cob_order: string
           patient_id: string
+          payer_id: string | null
           payer_member_id: string | null
           payer_name: string | null
           plan_name: string | null
@@ -1947,9 +1949,11 @@ export type Database = {
           coverage_end?: string | null
           coverage_start?: string | null
           created_at?: string
+          group_number?: string | null
           id?: string
           implied_cob_order?: string
           patient_id: string
+          payer_id?: string | null
           payer_member_id?: string | null
           payer_name?: string | null
           plan_name?: string | null
@@ -1969,9 +1973,11 @@ export type Database = {
           coverage_end?: string | null
           coverage_start?: string | null
           created_at?: string
+          group_number?: string | null
           id?: string
           implied_cob_order?: string
           patient_id?: string
+          payer_id?: string | null
           payer_member_id?: string | null
           payer_name?: string | null
           plan_name?: string | null
@@ -4236,7 +4242,9 @@ export type Database = {
           pertinent_history: Json | null
           phone: string | null
           pickup_address: string | null
+          primary_group_number: string | null
           primary_payer: string | null
+          primary_payer_id: string | null
           prior_auth_period_end: string | null
           prior_auth_period_start: string | null
           prior_auth_trips_authorized: number | null
@@ -4327,7 +4335,9 @@ export type Database = {
           pertinent_history?: Json | null
           phone?: string | null
           pickup_address?: string | null
+          primary_group_number?: string | null
           primary_payer?: string | null
+          primary_payer_id?: string | null
           prior_auth_period_end?: string | null
           prior_auth_period_start?: string | null
           prior_auth_trips_authorized?: number | null
@@ -4418,7 +4428,9 @@ export type Database = {
           pertinent_history?: Json | null
           phone?: string | null
           pickup_address?: string | null
+          primary_group_number?: string | null
           primary_payer?: string | null
+          primary_payer_id?: string | null
           prior_auth_period_end?: string | null
           prior_auth_period_start?: string | null
           prior_auth_trips_authorized?: number | null

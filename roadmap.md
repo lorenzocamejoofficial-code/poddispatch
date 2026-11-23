@@ -95,3 +95,9 @@
 - [x] Align the secondary filter with Paid and clear it when selecting other statuses
 - [x] Show the existing secondary generation action, payer and responsibility amount directly on paid cards
 - [x] Full suite: 1,351 tests pass; preview build OK; synthetic desktop/phone Review and generation flow verified without an editor. Real-account check unavailable: session mint could not match requesting account. Calculation logic and data protections unchanged.
+
+# Roadmap — coverage consolidation
+- [x] Extend confirm writes with group/payer IDs and existing tertiary slot; preserve scoped review guards.
+- [x] Remove dead discovery controls/function; empty table deprecated (drop blocked by project migration permission).
+- [x] 1,442 tests and preview build pass; coverage/Missing Money transitions verified; live eligibility component byte-identical. Authenticated patient-view browser check unavailable: no matching requester auth session.
+- [ ] Physically drop empty coverage_discoveries — blocked by Execute backward incompatible database migrations permission.

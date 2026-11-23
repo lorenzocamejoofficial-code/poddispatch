@@ -1,0 +1,1 @@
+- Map confirmed coverage group and payer identifiers to the selected patient insurance slot; absent identifiers preserve prior values — why: older results must remain reviewable without erasing metadata.

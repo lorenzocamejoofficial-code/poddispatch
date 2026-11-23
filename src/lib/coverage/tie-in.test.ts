@@ -35,4 +35,12 @@ describe("coverage → Missing Money tie-in", () => {
     expect(confirmed.patientUpdate).toEqual({ secondary_payer: "Sample Payer", secondary_member_id: "SAMPLE123" });
     expect(confirmed.checkUpdate.review_action).toBe("confirmed_secondary");
   });
+  it("tertiary confirmation removes the review prompt without creating a secondary bucket", () => {
+    const check = row({ group_number: "SAMPLE-GROUP", payer_id: "SAMPLE-PAYER" });
+    const confirmed = planReviewAction(check, "confirmed_tertiary", "u1", "2026-01-03T00:00:00Z");
+    expect(confirmed.patientUpdate).toEqual({ tertiary_payer: "Sample Payer", tertiary_member_id: "SAMPLE123", tertiary_group_number: "SAMPLE-GROUP", tertiary_payer_id: "SAMPLE-PAYER" });
+    expect(secondaryReviewPrompts([{ ...check, ...confirmed.checkUpdate }])).toEqual([]);
+    expect(patientQualifiesForSecondaryBucket({ secondary_payer: null, ...confirmed.patientUpdate })).toBe(false);
+  });
+
 });

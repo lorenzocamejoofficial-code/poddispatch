@@ -1,0 +1,1 @@
+COMMENT ON TABLE public.coverage_discoveries IS 'DEPRECATED: replaced by coverage_checks; legacy discover-coverage stub retired. Empty at retirement; retained because destructive migrations are disabled.';

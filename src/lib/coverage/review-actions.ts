@@ -3,7 +3,7 @@
  * only ever applied to a patient by an explicit user click; this module
  * computes what that click writes. No I/O, no PHI logging.
  */
-export type ReviewAction = "confirmed_primary" | "confirmed_secondary" | "dismissed";
+export type ReviewAction = "confirmed_primary" | "confirmed_secondary" | "confirmed_tertiary" | "dismissed";
 
 export interface CoverageCheckRow {
   id: string;
@@ -11,6 +11,8 @@ export interface CoverageCheckRow {
   status: string;
   payer_name: string | null;
   payer_member_id: string | null;
+  group_number?: string | null;
+  payer_id?: string | null;
   reviewed: boolean;
   review_action: ReviewAction | null;
 }
@@ -35,13 +37,14 @@ export function planReviewAction(
   }
   const checkUpdate = { reviewed: true as const, review_action: action, reviewed_by: userId, reviewed_at: nowIso };
   if (action === "dismissed") return { checkUpdate, patientUpdate: null };
-  const patientUpdate: Record<string, string> =
-    action === "confirmed_secondary"
-      ? { secondary_payer: row.payer_name! }
-      : { primary_payer: row.payer_name! };
-  if (row.payer_member_id) {
-    patientUpdate[action === "confirmed_secondary" ? "secondary_member_id" : "member_id"] = row.payer_member_id;
-  }
+  const payerName = row.payer_name;
+  if (!payerName) throw new Error("A payer is required");
+  const slot = action === "confirmed_secondary" ? "secondary" : action === "confirmed_tertiary" ? "tertiary" : "primary";
+  const patientUpdate: Record<string, string> = { [`${slot}_payer`]: payerName };
+  if (row.payer_member_id) patientUpdate[slot === "primary" ? "member_id" : `${slot}_member_id`] = row.payer_member_id;
+  // Older results have no identifiers: preserve existing values when absent.
+  if (row.group_number) patientUpdate[`${slot}_group_number`] = row.group_number;
+  if (row.payer_id) patientUpdate[`${slot}_payer_id`] = row.payer_id;
   return { checkUpdate, patientUpdate };
 }
 

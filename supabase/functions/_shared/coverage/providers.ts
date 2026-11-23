@@ -33,6 +33,8 @@ interface BaseResult {
   source: CoverageSource;
   payer_name: string | null;
   payer_member_id: string | null;
+  group_number: string | null;
+  payer_id: string | null;
   plan_name: string | null;
   coverage_start: string | null;
   coverage_end: string | null;
@@ -83,6 +85,8 @@ export class StubProvider implements CoverageProvider {
       status: hasPayer ? "active" : "unknown",
       payer_name: hasPayer ? `SAMPLE — ${patient.primary_payer}` : null,
       payer_member_id: null,
+      group_number: hasPayer ? "SAMPLE-GROUP-001" : null,
+      payer_id: hasPayer ? "SAMPLE-PAYER-001" : null,
       plan_name: hasPayer ? "SAMPLE Plan" : null,
       coverage_start: hasPayer ? "2026-01-01" : null,
       coverage_end: hasPayer ? "2026-12-31" : null,
@@ -100,6 +104,8 @@ export class StubProvider implements CoverageProvider {
       status: "coverage_found",
       payer_name: "SAMPLE Blue Cross Blue Shield of Georgia",
       payer_member_id: `SAMPLE${String(n).padStart(5, "0")}`,
+      group_number: "SAMPLE-GROUP-002",
+      payer_id: "SAMPLE-PAYER-002",
       plan_name: "SAMPLE Medicare Supplement Plan G",
       coverage_start: "2026-01-01",
       coverage_end: null,
@@ -147,6 +153,8 @@ export function toCoverageCheckRow(
     status: r.status,
     payer_name: r.payer_name,
     payer_member_id: r.payer_member_id,
+    group_number: r.group_number,
+    payer_id: r.payer_id,
     plan_name: r.plan_name,
     coverage_start: r.coverage_start,
     coverage_end: r.coverage_end,

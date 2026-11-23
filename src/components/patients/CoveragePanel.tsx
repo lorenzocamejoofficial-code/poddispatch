@@ -15,6 +15,7 @@ import { applyCoverageReview } from "./coverage-apply";
 interface CoverageRow {
   id: string; patient_id: string; check_type: "eligibility" | "discovery"; status: string;
   payer_name: string | null; plan_name: string | null; payer_member_id: string | null;
+  group_number: string | null; payer_id: string | null;
   coverage_start: string | null; coverage_end: string | null; implied_cob_order: string;
   source: string; checked_at: string; confidence: string | null;
   reviewed: boolean; review_action: ReviewAction | null;
@@ -23,6 +24,7 @@ interface CoverageRow {
 const ACTION_LABEL: Record<ReviewAction, string> = {
   confirmed_secondary: "Confirmed as secondary",
   confirmed_primary: "Confirmed as primary",
+  confirmed_tertiary: "Confirmed as tertiary",
   dismissed: "Dismissed",
 };
 
@@ -36,7 +38,7 @@ export function CoveragePanel({ patientId }: { patientId: string }) {
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.from("coverage_checks" as any)
-      .select("id, patient_id, check_type, status, payer_name, plan_name, payer_member_id, coverage_start, coverage_end, implied_cob_order, source, checked_at, confidence, reviewed, review_action")
+      .select("id, patient_id, check_type, status, payer_name, plan_name, payer_member_id, group_number, payer_id, coverage_start, coverage_end, implied_cob_order, source, checked_at, confidence, reviewed, review_action")
       .eq("company_id", activeCompanyId ?? NO_COMPANY)
       .eq("patient_id", patientId)
       .order("checked_at", { ascending: false })
@@ -104,6 +106,8 @@ export function CoveragePanel({ patientId }: { patientId: string }) {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
                   <div><span className="text-muted-foreground">Member ID: </span>{r.payer_member_id ?? "—"}</div>
+                  <div><span className="text-muted-foreground">Group number: </span>{r.group_number ?? "—"}</div>
+                  <div><span className="text-muted-foreground">Payer ID: </span>{r.payer_id ?? "—"}</div>
                   <div><span className="text-muted-foreground">Coverage: </span>{r.coverage_start ?? "—"} → {r.coverage_end ?? "open"}</div>
                   <div><span className="text-muted-foreground">Order: </span><span className="capitalize">{r.implied_cob_order}</span></div>
                   <div><span className="text-muted-foreground">Confidence: </span><span className="capitalize">{r.confidence ?? "—"}</span></div>
@@ -115,6 +119,7 @@ export function CoveragePanel({ patientId }: { patientId: string }) {
                       <>
                         <Button size="sm" disabled={busyId === r.id} onClick={() => review(r, "confirmed_secondary")}>Confirm & add as secondary</Button>
                         <Button size="sm" variant="outline" disabled={busyId === r.id} onClick={() => review(r, "confirmed_primary")}>Confirm as primary</Button>
+                        <Button size="sm" variant="outline" disabled={busyId === r.id} onClick={() => review(r, "confirmed_tertiary")}>Confirm as tertiary</Button>
                       </>
                     )}
                     <Button size="sm" variant="ghost" disabled={busyId === r.id} onClick={() => review(r, "dismissed")}>Dismiss</Button>

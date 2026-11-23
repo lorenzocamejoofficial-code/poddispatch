@@ -55,4 +55,30 @@ describe("Coverage panel review wiring", () => {
     const res = await applyCoverageReview({ row, action: "dismissed", userId: "u1", companyId: "co1", client });
     expect(res.ok).toBe(false);
   });
+  for (const slot of ["primary", "secondary", "tertiary"] as const) {
+    it(`confirm ${slot} applies group number and payer ID with company scoping`, async () => {
+      const { client, calls } = fakeClient();
+      const res = await applyCoverageReview({
+        row: { ...row, group_number: "SAMPLE-GROUP-002", payer_id: "SAMPLE-PAYER-002" },
+        action: `confirmed_${slot}`, userId: "u1", companyId: "co1", client,
+      });
+      expect(res.ok).toBe(true);
+      expect(calls[0].update).toEqual({
+        [`${slot}_payer`]: "Sample Payer",
+        [slot === "primary" ? "member_id" : `${slot}_member_id`]: "SAMPLE1",
+        [`${slot}_group_number`]: "SAMPLE-GROUP-002",
+        [`${slot}_payer_id`]: "SAMPLE-PAYER-002",
+      });
+      expect(calls[0].filters).toEqual([["id", "p1"], ["company_id", "co1"]]);
+      expect(calls[1].filters).toEqual([["id", "c1"], ["company_id", "co1"], ["reviewed", false]]);
+      expect(calls[1].update.review_action).toBe(`confirmed_${slot}`);
+    });
+  }
+  it("refuses repeated tertiary confirmation without writing", async () => {
+    const { client, calls } = fakeClient();
+    const res = await applyCoverageReview({ row: { ...row, reviewed: true }, action: "confirmed_tertiary", userId: "u1", companyId: "co1", client });
+    expect(res.ok).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+
 });

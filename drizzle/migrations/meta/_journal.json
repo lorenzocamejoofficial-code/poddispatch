@@ -120,6 +120,20 @@
       "when": 1795123599110,
       "tag": "0016_coverage_checks_company_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795413695929,
+      "tag": "0017_extend_coverage_confirmation",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795413733658,
+      "tag": "0018_deprecate_unused_coverage_discoveries",
+      "breakpoints": true
     }
   ]
 }

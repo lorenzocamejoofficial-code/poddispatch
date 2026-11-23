@@ -36,6 +36,8 @@ describe("coverage providers", () => {
     const row = toCoverageCheckRow("c1", patient.patient_id, r, "2026-11-19T00:00:00Z");
     expect(row.reviewed).toBe(false);
     expect(row.company_id).toBe("c1");
+    expect(row.group_number).toBe("SAMPLE-GROUP-002");
+    expect(row.payer_id).toBe("SAMPLE-PAYER-002");
   });
 });
 
@@ -64,4 +66,9 @@ describe("review actions", () => {
     expect(isSecondaryOpportunity({ ...base, implied_cob_order: "primary" })).toBe(false);
     expect(isSecondaryOpportunity({ ...base, implied_cob_order: "secondary", reviewed: true, review_action: "dismissed" })).toBe(false);
   });
+  it("missing identifiers on older results do not erase patient fields", () => {
+    const result = planReviewAction({ ...base, group_number: null, payer_id: null }, "confirmed_primary", "u", "t");
+    expect(result.patientUpdate).toEqual({ primary_payer: "SAMPLE BCBS", member_id: "SAMPLE1" });
+  });
+
 });
