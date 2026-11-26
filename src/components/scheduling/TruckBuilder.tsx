@@ -1,5 +1,5 @@
 import { tripStatusLabel } from "@/lib/trip-status";
-import { memo, useEffect, useMemo, useState, useCallback } from "react";
+import { memo, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
@@ -31,6 +31,7 @@ import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
 import { getFeasibilityRefreshKey, useTruckDayFeasibility, useTruckDayLegs, toFeasibilityLeg } from "@/hooks/useTruckDayFeasibility";
 import { suggestTrucksForRun } from "@/lib/truck-suggestion";
 import { buildTruckCandidates, toSuggestionRun } from "@/lib/truck-suggestion-candidates";
+import { buildTruckSuggestionFeedback } from "@/lib/truck-suggestion-feedback";
 import type { TruckCandidate } from "@/lib/truck-suggestion";
 import type { FeasibilityBuffers } from "@/lib/schedule-feasibility";
 import { TruckSuggestionReasons, type TruckSuggestionView } from "@/components/scheduling/TruckSuggestionReasons";
@@ -442,8 +443,34 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     const views = new Map<string, TruckSuggestionView>();
     result.eligible.forEach((e, i) => views.set(e.truckId, { kind: "eligible", rank: i + 1, reasons: e.reasons }));
     result.ineligible.forEach((r) => views.set(r.truckId, { kind: "ineligible", reason: r.reason }));
-    return { views, skipped: skippedNoCrew.length };
+    return { views, skipped: skippedNoCrew.length, suitableCount: result.eligible.length };
   }, [suggestFor, trucks, crews, truckServiceLevel, truckEquipmentMap, truckMaxWeight, getCrewCapability, availability, dayLegs]);
+
+  const suggestionPanelRef = useRef<HTMLDivElement>(null);
+  const announcedSuggestionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!suggestFor || !suggestion) {
+      announcedSuggestionRef.current = null;
+      return;
+    }
+    if (announcedSuggestionRef.current === suggestFor.id) return;
+    announcedSuggestionRef.current = suggestFor.id;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    suggestionPanelRef.current?.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "start",
+    });
+
+    const message = buildTruckSuggestionFeedback({
+      patientName: suggestFor.patient_name,
+      legType: suggestFor.leg_type,
+      pickupTime: suggestFor.pickup_time,
+      suitableCount: suggestion.suitableCount,
+    });
+    if (suggestion.suitableCount > 0) toast.success(message);
+    else toast.info(message);
+  }, [suggestFor, suggestion]);
 
   // Share the same read-only candidate set with the intake impact check.
   useEffect(() => {
@@ -669,7 +696,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
         )}
       </div>
       {suggestFor && suggestion && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+        <div ref={suggestionPanelRef} data-testid="truck-suggestions-panel" className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
           <span className="font-semibold text-foreground">
             Suggestions for {suggestFor.patient_name} {suggestFor.leg_type}{suggestFor.pickup_time ? ` ${suggestFor.pickup_time.slice(0, 5)}` : ""}
           </span>
