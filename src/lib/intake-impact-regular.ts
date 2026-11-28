@@ -30,7 +30,7 @@ export function buildRegularIntake(args: {
   const { form, patient } = args;
   const stats = withProspectiveStats(args.boardStats, form.patient_id || null, args.patientStats);
   const timing = toFeasibilityLeg({
-    id: INTAKE_LEG_ID, leg_type: args.legType, pickup_time: form.pickup_time || null,
+    id: INTAKE_LEG_ID, trip_type: form.trip_type, leg_type: args.legType, pickup_time: form.pickup_time || null,
     estimated_duration_minutes: form.estimated_duration_minutes ? parseInt(form.estimated_duration_minutes) : null,
     patient_id: form.patient_id || null,
     patient: patient

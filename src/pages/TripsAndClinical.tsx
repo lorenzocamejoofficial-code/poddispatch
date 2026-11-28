@@ -526,7 +526,9 @@ export default function TripsAndClinical() {
       payload.claim_ready = cleanResult.level === "clean";
       payload.blockers = cleanResult.level === "clean" ? [] : cleanResult.issues;
 
-      await supabase.from("trip_records" as any).update(payload).eq("id", selectedTrip.id);
+      const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+      const { error } = await supabase.from("trip_records" as any).update(payload).eq("id", selectedTrip.id).eq("company_id", companyId);
+      if (error) { toast.error(error.message.includes("PATIENT_TRIP_OVERLAP") ? "This patient has an overlapping trip. Choose non-overlapping trip times." : "Trip record could not be saved"); return; }
 
       toast.success("Trip record saved");
       setSelectedTrip(null);

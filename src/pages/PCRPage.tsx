@@ -592,7 +592,9 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
 
     // Duplicate trip detection
     if (run.patientId) {
-      const dupResult = await checkDuplicateTrip(run.patientId, today, run.pickupTime);
+      let dupResult;
+      try { dupResult = await checkDuplicateTrip(run.patientId, today, run.pickupTime, { excludeLegId: run.legId }); }
+      catch { toast.error("Could not check patient trip overlaps. Try again."); return; }
       if (dupResult.isDuplicate) {
         setDupWarning({ run, existingTrips: dupResult.existingTrips });
         return;
@@ -767,7 +769,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
               Potential Duplicate Trip
             </DialogTitle>
             <DialogDescription>
-              A trip already exists for this patient on this date with a pickup time within 30 minutes. Are you sure you want to create another trip record?
+              This patient already has a trip whose transport window overlaps this run. Choose a non-overlapping time before creating another PCR.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
@@ -780,17 +782,7 @@ function PCRRunSelector({ onSelect }: { onSelect: (tripId: string) => void }) {
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setDupWarning(null)}>Cancel</Button>
-            <Button
-              variant="destructive"
-              onClick={async () => {
-                const run = dupWarning!.run;
-                setDupWarning(null);
-                logAuditEvent({ action: "duplicate_override", tableName: "trip_records", notes: `Crew confirmed duplicate trip for patient ${run.patientId} on ${today}` });
-                await createTripForRun(run);
-              }}
-            >
-              Create Anyway
-            </Button>
+
           </DialogFooter>
         </DialogContent>
       </Dialog>

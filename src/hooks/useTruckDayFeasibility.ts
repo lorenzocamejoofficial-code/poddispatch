@@ -20,7 +20,7 @@ function toMin(t: string | null | undefined): number | null {
 export function toFeasibilityLeg(
   l: any, slotOrder: number,
   stats: Map<string, any>,
-  settings: { dialysis_b_leg_buffer_minutes?: number | null } | null,
+  settings: { dialysis_b_leg_buffer_minutes?: number | null; default_dwell_minutes?: unknown } | null,
 ): FeasibilityLeg {
   const p = l.patient ?? null;
   const kind = normalizeLegType(l.leg_type);
@@ -32,10 +32,12 @@ export function toFeasibilityLeg(
   let predictedReturn: number | null = null;
   let predictedReady: number | null = null;
   if (kind === "B" && p) {
-    const planned = ((p.chair_time_duration_hours ?? 0) * 60 + (p.chair_time_duration_minutes ?? 0)) || p.run_duration_minutes || 0;
+    const planned = ((p.chair_time_duration_hours ?? 0) * 60 + (p.chair_time_duration_minutes ?? 0)) || 0;
     const sug = suggestReturnPickup({
       chairTime: p.chair_time, turnaround: s.turnaround, plannedChairMinutes: planned,
       bufferMinutes: settings?.dialysis_b_leg_buffer_minutes ?? undefined,
+      aLegDropTime: l.a_leg_drop_time ?? l.chair_time ?? p.chair_time,
+      transportType: l.trip_type ?? p.transport_type, dwellDefaults: settings?.default_dwell_minutes,
     });
     predictedReturn = typeof sug.value === "string" ? toMin(sug.value) : null;
     if (sug.source === "history" && sug.confidence !== "none") predictedReady = predictedReturn;
@@ -51,6 +53,21 @@ export function toFeasibilityLeg(
       ? { timingSource: { trip: "history" as const, n: tripSug.n, confidence: tripSug.confidence as "low" | "medium" | "high" } } : {}),
     ...(predictedReady != null ? { predictedReady } : {}),
   };
+}
+
+/** Anchor missing chair times to the preceding same-patient/type A-leg drop estimate. */
+export function withReturnDropAnchor(l: any, allLegs: any[], stats: Map<string, any>, settings: any): any {
+  if (normalizeLegType(l.leg_type) !== "B" || !l.patient_id || l.a_leg_drop_time || l.chair_time || l.patient?.chair_time) return l;
+  const pickup = toMin(l.pickup_time);
+  const anchors = allLegs.filter(a => a.patient_id === l.patient_id && normalizeLegType(a.leg_type) === "A" && (a.trip_type ?? null) === (l.trip_type ?? null))
+    .map(a => {
+      const timing = toFeasibilityLeg(a, 0, stats, settings);
+      const start = timing.scheduledPickup;
+      return start == null ? null : start + (settings?.load_time_minutes ?? 10) + timing.tripMinutes;
+    }).filter((m): m is number => m != null && (pickup == null || m <= pickup)).sort((a, b) => b - a);
+  const drop = anchors[0];
+  if (drop == null) return l;
+  return { ...l, a_leg_drop_time: `${String(Math.floor(drop / 60) % 24).padStart(2, "0")}:${String(drop % 60).padStart(2, "0")}` };
 }
 
 export function buffersFromSettings(settings: any): FeasibilityBuffers {
@@ -89,11 +106,11 @@ export function useTruckDayFeasibility(runDate: string, refreshKey: unknown = nu
       const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const [slotsRes, settingsRes] = await Promise.all([
         supabase.from("truck_run_slots")
-          .select("truck_id, leg_id, slot_order, status, leg:scheduling_legs(id, leg_type, pickup_time, chair_time, estimated_duration_minutes, is_oneoff, oneoff_name, is_simulated, patient_id, patient:patients(first_name, last_name, must_arrive_by, chair_time, chair_time_duration_hours, chair_time_duration_minutes, run_duration_minutes))")
+          .select("truck_id, leg_id, slot_order, status, leg:scheduling_legs(id, leg_type, trip_type, pickup_time, chair_time, estimated_duration_minutes, is_oneoff, oneoff_name, is_simulated, patient_id, patient:patients(first_name, last_name, must_arrive_by, chair_time, chair_time_duration_hours, chair_time_duration_minutes, run_duration_minutes))")
           .eq("company_id", companyId)
           .eq("run_date", runDate),
         supabase.from("company_settings")
-          .select("load_time_minutes, unload_time_minutes, grace_window_minutes, enforce_run_gap_minutes, dialysis_b_leg_buffer_minutes")
+          .select("load_time_minutes, unload_time_minutes, grace_window_minutes, enforce_run_gap_minutes, dialysis_b_leg_buffer_minutes, default_dwell_minutes")
           .eq("company_id", companyId)
           .maybeSingle(),
       ]);
@@ -117,7 +134,7 @@ export function useTruckDayFeasibility(runDate: string, refreshKey: unknown = nu
     const b = buffersFromSettings(settings);
     const byTruck = new Map<string, FeasibilityLeg[]>();
     for (const r of rows) {
-      const leg = toFeasibilityLeg(r.leg, r.slot_order, stats, settings);
+      const leg = toFeasibilityLeg(withReturnDropAnchor(r.leg, rows.map(row => row.leg), stats, settings), r.slot_order, stats, settings);
       const arr = byTruck.get(r.truck_id) ?? [];
       arr.push(leg);
       byTruck.set(r.truck_id, arr);
@@ -139,10 +156,10 @@ export function useTruckDayLegs(runDate: string, refreshKey: unknown = null) {
       const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const [slotsRes, settingsRes] = await Promise.all([
         supabase.from("truck_run_slots")
-          .select("truck_id, leg_id, slot_order, status, leg:scheduling_legs(id, leg_type, pickup_time, chair_time, estimated_duration_minutes, is_oneoff, oneoff_name, is_simulated, patient_id, patient:patients(first_name, last_name, must_arrive_by, chair_time, chair_time_duration_hours, chair_time_duration_minutes, run_duration_minutes))")
+          .select("truck_id, leg_id, slot_order, status, leg:scheduling_legs(id, leg_type, trip_type, pickup_time, chair_time, estimated_duration_minutes, is_oneoff, oneoff_name, is_simulated, patient_id, patient:patients(first_name, last_name, must_arrive_by, chair_time, chair_time_duration_hours, chair_time_duration_minutes, run_duration_minutes))")
           .eq("company_id", companyId).eq("run_date", runDate),
         supabase.from("company_settings")
-          .select("load_time_minutes, unload_time_minutes, grace_window_minutes, enforce_run_gap_minutes, dialysis_b_leg_buffer_minutes")
+          .select("load_time_minutes, unload_time_minutes, grace_window_minutes, enforce_run_gap_minutes, dialysis_b_leg_buffer_minutes, default_dwell_minutes")
           .eq("company_id", companyId).maybeSingle(),
       ]);
       if (cancelled) return;
@@ -159,7 +176,7 @@ export function useTruckDayLegs(runDate: string, refreshKey: unknown = null) {
     const legsByTruck = new Map<string, FeasibilityLeg[]>();
     for (const r of rows) {
       const arr = legsByTruck.get(r.truck_id) ?? [];
-      arr.push(toFeasibilityLeg(r.leg, r.slot_order, stats, settings));
+      arr.push(toFeasibilityLeg(withReturnDropAnchor(r.leg, rows.map(row => row.leg), stats, settings), r.slot_order, stats, settings));
       legsByTruck.set(r.truck_id, arr);
     }
     return { legsByTruck, buffers: buffersFromSettings(settings), settings, stats };

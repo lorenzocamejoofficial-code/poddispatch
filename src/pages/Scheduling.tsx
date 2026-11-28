@@ -1,3 +1,5 @@
+import { checkDuplicateTrip, patientOverlapMessage } from "@/lib/duplicate-trip-check";
+import { patientTripWindow, windowsOverlap } from "@/lib/patient-trip-window";
 import { IntakeAxes, IntakeFieldError } from "@/components/patients/IntakeAxes";
 import { intakeAxes, missingIntakeFields } from "@/lib/intake-axis-policy";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
@@ -49,6 +51,7 @@ import { useSchedulingStore, matchesScheduleDay, type LegDisplay } from "@/hooks
 import { RunReassignmentDialog } from "@/components/scheduling/RunReassignmentDialog";
 import { UpstreamReadinessPanel } from "@/components/billing/UpstreamReadinessPanel";
 import { detectTimeConflicts, type TimeConflict } from "@/lib/time-conflict";
+import { useDwellDefaults } from "@/hooks/useDwellDefaults";
 import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
 import { TimeSuggestionChip } from "@/components/scheduling/TimeSuggestionChip";
 import { EMPTY_STATS, suggestReturnPickup, suggestTripDuration } from "@/lib/patient-time-prediction";
@@ -412,12 +415,15 @@ export default function Scheduling() {
   const [legBLegDurationHours, setLegBLegDurationHours] = useState("0");
   const [legBLegDurationMinutes, setLegBLegDurationMinutes] = useState("0");
   // Advisory time predictions (read-only; "Use suggestion" only fills the field).
+  const dwellDefaults = useDwellDefaults();
   const legTimeStats = usePatientTimeStats([legForm.patient_id]);
   const legPatient = patients.find(p => p.id === legForm.patient_id);
   const legStats = (legForm.patient_id && legTimeStats.get(legForm.patient_id)) || EMPTY_STATS;
   const legReturnSuggestion = suggestReturnPickup({
     chairTime: legPatient?.chair_time ?? null,
     turnaround: legStats.turnaround,
+    aLegDropTime: legPatient?.chair_time ?? null,
+    transportType: legForm.trip_type, dwellDefaults,
     plannedChairMinutes: ((legPatient?.chair_time_duration_hours ?? 0) * 60) + (legPatient?.chair_time_duration_minutes ?? 0),
   });
   const legDurationSuggestion = suggestTripDuration({ stats: legStats.durationB, plannedMinutes: legPatient?.run_duration_minutes });
@@ -668,7 +674,20 @@ export default function Scheduling() {
     }
 
     const normalizedTripType = normalizeTripType(legForm.trip_type);
-    const { data: companyId } = await supabase.rpc("get_my_company_id");
+    const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+    try {
+      const aDuration = legForm.estimated_duration_minutes ? Number(legForm.estimated_duration_minutes) : patient?.run_duration_minutes;
+      const primaryCheck = await checkDuplicateTrip(legForm.patient_id, selectedDate, legForm.pickup_time || null, { durationMinutes: aDuration });
+      if (primaryCheck.isDuplicate) { toast.error(patientOverlapMessage(patient?.name ?? "This patient", primaryCheck)); return; }
+      if (legNeedsBLeg) {
+        const bDuration = Number(legBLegDurationHours) * 60 + Number(legBLegDurationMinutes);
+        const bCheck = await checkDuplicateTrip(legForm.patient_id, selectedDate, legBLegPickupTime || null, { durationMinutes: bDuration || patient?.run_duration_minutes });
+        if (bCheck.isDuplicate) { toast.error(patientOverlapMessage(patient?.name ?? "This patient", bCheck)); return; }
+        const a = patientTripWindow(legForm.pickup_time || null, null, aDuration ?? 30);
+        const b = patientTripWindow(legBLegPickupTime || null, null, bDuration || patient?.run_duration_minutes || 30);
+        if (a && b && windowsOverlap(a, b)) { toast.error("This patient's outgoing and return trip windows overlap. Choose a later return pickup."); return; }
+      }
+    } catch { toast.error("Could not check patient trip overlaps. Try again before saving."); return; }
 
     const { error } = await supabase.from("scheduling_legs").insert({
       patient_id: legForm.patient_id,
@@ -687,7 +706,7 @@ export default function Scheduling() {
       service_level: legForm.service_level || "BLS",
     } as any);
 
-    if (error) { console.error("Leg creation error:", error); toast.error(`Failed to create leg: ${error.message}`); return; }
+    if (error) { toast.error(error.message.includes("PATIENT_TRIP_OVERLAP") ? "This patient has an overlapping trip. Choose another time." : "Failed to create leg"); return; }
 
     if (legNeedsBLeg) {
       const bDuration = (parseInt(legBLegDurationHours) || 0) * 60 + (parseInt(legBLegDurationMinutes) || 0);
@@ -786,6 +805,10 @@ export default function Scheduling() {
     if (!editingExceptionLeg) return;
     setSavingException(true);
     try {
+      if (editingExceptionLeg.patient_id) {
+        const overlap = await checkDuplicateTrip(editingExceptionLeg.patient_id, exceptionNewDate || selectedDate, exceptionForm.pickup_time || editingExceptionLeg.pickup_time, { durationMinutes: editingExceptionLeg.estimated_duration_minutes, excludeLegId: editingExceptionLeg.id });
+        if (overlap.isDuplicate) { toast.error(patientOverlapMessage(editingExceptionLeg.patient_name, overlap)); return; }
+      }
       // If date is being changed, move the leg to the new date
       if (exceptionNewDate && exceptionNewDate !== selectedDate) {
         // Update the scheduling_leg's run_date
@@ -860,6 +883,8 @@ export default function Scheduling() {
       toast.success("Run exception saved for this date only");
       setExceptionDialogOpen(false);
       refresh();
+    } catch {
+      toast.error("Could not check or save patient trip times. Try again.");
     } finally {
       setSavingException(false);
     }

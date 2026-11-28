@@ -1,3 +1,12 @@
+# Roadmap — five scoped scheduling changes
+- [x] Presentation-only time-conflict reminders, confidence gating, and tests.
+- [x] One synthetic patient per seeded identity; rerun reuse and tests (existing clones not merged).
+- [x] Same-patient overlap blocking on creation/edit; non-overlapping trips allowed; tests and rollback-only database checks.
+- [x] Nullable truck shifts, truck forms, advisory overrun display, and tests.
+- [x] Editable company dwell defaults; history/chair-time precedence and tests.
+- [x] Full suite: 1,476 tests; preview build OK; simulation-lab deployed; synthetic desktop/phone badges verified.
+- [ ] Authenticated scheduling/seeding walkthrough — requester sign-in session unavailable; no real demo reseed performed.
+
 # Roadmap — billing readiness reconciliation
 - [x] Close Refresh/Sync/manual status and database auto-promotion gaps; sent/settled claims excluded from Refresh, no data backfill. Shared readiness, company-scoped writes, 1,374 tests (including secondary/COB), build OK; live trigger definitions verified and reported sandbox claim remains needs_review.
 - [x] Diagnose mount effect, shared-gate drift, and write permissions before editing.

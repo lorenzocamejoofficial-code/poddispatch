@@ -1,0 +1,1 @@
+ALTER TABLE public.trucks ADD COLUMN shift_start time without time zone, ADD COLUMN shift_end time without time zone;

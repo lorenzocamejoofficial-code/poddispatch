@@ -387,6 +387,10 @@ export default function TrucksCrews() {
   const [truckName, setTruckName] = useState("");
   const [truckVehicleId, setTruckVehicleId] = useState("");
   const [truckMaxWeight, setTruckMaxWeight] = useState("");
+  const [truckShiftStart, setTruckShiftStart] = useState("");
+  const [truckShiftEnd, setTruckShiftEnd] = useState("");
+  const [editShiftStart, setEditShiftStart] = useState("");
+  const [editShiftEnd, setEditShiftEnd] = useState("");
   const [truckServiceLevel, setTruckServiceLevel] = useState<"BLS" | "ALS">("BLS");
   const [savingTruck, setSavingTruck] = useState(false);
   const [editingTruckId, setEditingTruckId] = useState<string | null>(null);
@@ -524,7 +528,7 @@ export default function TrucksCrews() {
     if (savingTruck) return;
     setSavingTruck(true);
     try {
-      const { data: companyData } = await supabase.rpc("get_my_company_id");
+      const companyData = (await getActiveCompanyId()) ?? NO_COMPANY;
       // Duplicate truck names/unit numbers confuse dispatch board identity —
       // block them (trimmed, case-insensitive, per company).
       const dup = await findTruckDuplicate(companyData, truckName, truckVehicleId);
@@ -534,7 +538,7 @@ export default function TrucksCrews() {
         setSavingTruck(false);
         return;
       }
-      const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null, service_level: truckServiceLevel, max_patient_weight_lbs: parseWeight(truckMaxWeight) } as any);
+      const { error } = await supabase.from("trucks").insert({ name: truckName.trim(), company_id: companyData, vehicle_id: truckVehicleId.trim() || null, service_level: truckServiceLevel, max_patient_weight_lbs: parseWeight(truckMaxWeight), shift_start: truckShiftStart || null, shift_end: truckShiftEnd || null } as any);
       if (error) {
         if ((error.message ?? "").includes("TRUCK_CAP_EXCEEDED")) {
           toast.error("Starter plan is capped at 5 trucks. Upgrade to Pro to add more.", {
@@ -545,7 +549,7 @@ export default function TrucksCrews() {
         }
         return;
       }
-      setTruckName(""); setTruckVehicleId(""); setTruckMaxWeight(""); setTruckServiceLevel("BLS"); setTruckDialog(false);
+      setTruckShiftStart(""); setTruckShiftEnd(""); setTruckName(""); setTruckVehicleId(""); setTruckMaxWeight(""); setTruckServiceLevel("BLS"); setTruckDialog(false);
       setTruckNameError(null); setTruckUnitError(null);
       toast.success("Truck added"); fetchAll(); refreshTrucks();
     } finally {
@@ -557,14 +561,14 @@ export default function TrucksCrews() {
     const trimmed = editingTruckName.trim();
     if (!trimmed) { toast.error("Name cannot be empty"); return; }
     // Same duplicate guard on rename/unit change, excluding this row.
-    const { data: companyData } = await supabase.rpc("get_my_company_id");
+    const companyData = (await getActiveCompanyId()) ?? NO_COMPANY;
     const dup = await findTruckDuplicate(companyData, trimmed, editingTruckVehicleId, id);
     if (dup.nameConflict || dup.unitConflict) {
       if (dup.nameConflict) setEditTruckNameError(`A truck named '${dup.nameConflict}' already exists`);
       if (dup.unitConflict) setEditTruckUnitError(`Unit number '${dup.unitConflict}' is already in use`);
       return;
     }
-    const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null, service_level: editingTruckServiceLevel, max_patient_weight_lbs: parseWeight(editingTruckMaxWeight) } as any).eq("id", id);
+    const { error } = await supabase.from("trucks").update({ name: trimmed, vehicle_id: editingTruckVehicleId.trim() || null, service_level: editingTruckServiceLevel, max_patient_weight_lbs: parseWeight(editingTruckMaxWeight), shift_start: editShiftStart || null, shift_end: editShiftEnd || null } as any).eq("id", id).eq("company_id", companyData);
     if (error) { toast.error("Failed to update truck"); return; }
     setEditingTruckId(null);
     setEditTruckNameError(null); setEditTruckUnitError(null);
@@ -957,6 +961,10 @@ export default function TrucksCrews() {
                   <div><Label>Rated patient weight (lbs, optional)<PCRTooltip text={ADMIN_TOOLTIPS.rated_patient_weight} /></Label>
                     <Input type="number" min={1} inputMode="numeric" value={truckMaxWeight} onChange={(e) => setTruckMaxWeight(e.target.value)} placeholder="e.g. 500" />
                   </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label>Shift start (optional)</Label><Input type="time" value={truckShiftStart} onChange={e => setTruckShiftStart(e.target.value)} /></div>
+                    <div><Label>Shift end (optional)</Label><Input type="time" value={truckShiftEnd} onChange={e => setTruckShiftEnd(e.target.value)} /></div>
+                  </div>
                   <div>
                     <Label>Service Level</Label>
                     <RadioGroup
@@ -984,6 +992,7 @@ export default function TrucksCrews() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {trucks.map((t) => (
               <div key={t.id} className={`rounded-lg border bg-card p-3 space-y-2 ${!t.active ? "opacity-60 border-muted" : ""}`}>
+                {((t as any).shift_start || (t as any).shift_end) && <p className="text-xs text-muted-foreground">Shift {(t as any).shift_start?.slice(0, 5) ?? "—"} → {(t as any).shift_end?.slice(0, 5) ?? "—"}</p>}
                 <div className="flex items-center gap-2">
                   <Truck className={`h-4 w-4 shrink-0 ${t.active ? "text-primary" : "text-muted-foreground"}`} />
                   {editingTruckId === t.id ? (
@@ -1012,6 +1021,10 @@ export default function TrucksCrews() {
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => saveTruckEdit(t.id)}><Check className="h-3 w-3 text-[hsl(var(--status-green))]" /></Button>
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditingTruckId(null); setEditTruckNameError(null); setEditTruckUnitError(null); }}><X className="h-3 w-3" /></Button>
                       </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div><Label>Shift start</Label><Input type="time" value={editShiftStart} onChange={e => setEditShiftStart(e.target.value)} /></div>
+                        <div><Label>Shift end</Label><Input type="time" value={editShiftEnd} onChange={e => setEditShiftEnd(e.target.value)} /></div>
+                      </div>
                       {(editTruckNameError || editTruckUnitError) && (
                         <p className="text-xs text-destructive pl-1">{editTruckNameError ?? editTruckUnitError}</p>
                       )}
@@ -1027,7 +1040,7 @@ export default function TrucksCrews() {
                       </Badge>
                       {!t.active && <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-muted-foreground/30 text-muted-foreground">Inactive</Badge>}
                       {(t as any).vehicle_id && <span className="text-[10px] text-muted-foreground shrink-0">#{(t as any).vehicle_id}</span>}
-                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); setEditingTruckMaxWeight((t as any).max_patient_weight_lbs != null ? String((t as any).max_patient_weight_lbs) : ""); setEditingTruckServiceLevel(((t as any).service_level ?? "BLS") as "BLS" | "ALS"); setEditTruckNameError(null); setEditTruckUnitError(null); }}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setEditShiftStart((t as any).shift_start?.slice(0, 5) ?? ""); setEditShiftEnd((t as any).shift_end?.slice(0, 5) ?? ""); setEditingTruckId(t.id); setEditingTruckName(t.name); setEditingTruckVehicleId((t as any).vehicle_id ?? ""); setEditingTruckMaxWeight((t as any).max_patient_weight_lbs != null ? String((t as any).max_patient_weight_lbs) : ""); setEditingTruckServiceLevel(((t as any).service_level ?? "BLS") as "BLS" | "ALS"); setEditTruckNameError(null); setEditTruckUnitError(null); }}>
                         <Pencil className="h-3 w-3" />
                       </Button>
                       {t.active ? (

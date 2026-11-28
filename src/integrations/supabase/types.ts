@@ -1794,6 +1794,7 @@ export type Database = {
           company_id: string
           company_name: string
           coverage_provider: string
+          default_dwell_minutes: Json
           dialysis_b_leg_buffer_minutes: number
           discharge_buffer_minutes: number
           enforce_run_gap_minutes: boolean
@@ -1814,6 +1815,7 @@ export type Database = {
           company_id: string
           company_name?: string
           coverage_provider?: string
+          default_dwell_minutes?: Json
           dialysis_b_leg_buffer_minutes?: number
           discharge_buffer_minutes?: number
           enforce_run_gap_minutes?: boolean
@@ -1834,6 +1836,7 @@ export type Database = {
           company_id?: string
           company_name?: string
           coverage_provider?: string
+          default_dwell_minutes?: Json
           dialysis_b_leg_buffer_minutes?: number
           discharge_buffer_minutes?: number
           enforce_run_gap_minutes?: boolean
@@ -6894,6 +6897,8 @@ export type Database = {
           max_patient_weight_lbs: number | null
           name: string
           service_level: Database["public"]["Enums"]["truck_service_level"]
+          shift_end: string | null
+          shift_start: string | null
           simulation_run_id: string | null
           vehicle_id: string | null
         }
@@ -6911,6 +6916,8 @@ export type Database = {
           max_patient_weight_lbs?: number | null
           name: string
           service_level?: Database["public"]["Enums"]["truck_service_level"]
+          shift_end?: string | null
+          shift_start?: string | null
           simulation_run_id?: string | null
           vehicle_id?: string | null
         }
@@ -6928,6 +6935,8 @@ export type Database = {
           max_patient_weight_lbs?: number | null
           name?: string
           service_level?: Database["public"]["Enums"]["truck_service_level"]
+          shift_end?: string | null
+          shift_start?: string | null
           simulation_run_id?: string | null
           vehicle_id?: string | null
         }
@@ -7302,6 +7311,15 @@ export type Database = {
       normalize_transport_kind: {
         Args: { _v: string }
         Returns: Database["public"]["Enums"]["transport_kind"]
+      }
+      patient_transport_windows: {
+        Args: { p_company: string; p_date: string; p_patient: string }
+        Returns: {
+          end_at: string
+          leg_id: string
+          start_at: string
+          trip_id: string
+        }[]
       }
       purge_old_crew_locations: { Args: never; Returns: number }
       purge_test_company: {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
-import { checkDuplicateTrip } from "@/lib/duplicate-trip-check";
+import { checkDuplicateTrip, patientOverlapMessage } from "@/lib/duplicate-trip-check";
 import { TRANSPORT_KINDS, TRANSPORT_KIND_LABELS, normalizeTransportKind, type TransportKind } from "@/lib/transport-vocabulary";
 import {
   createManualPcr, isTruckOutOfService, validateManualPcrSetup,
@@ -131,13 +131,16 @@ export function CreatePcrDialog({ open, onOpenChange }: { open: boolean; onOpenC
     setErrors(errs);
     if (Object.values(errs).some(Boolean)) return;
 
-    if (!dupWarned) {
+    try {
       const dup = await checkDuplicateTrip(form.patientId, form.runDate, form.pickupTime);
       if (dup.isDuplicate) {
         setDupWarned(true);
-        setDupMessage(`This patient already has ${dup.existingTrips.length} trip(s) near this time on ${form.runDate}. Click Create PCR again to continue anyway.`);
+        setDupMessage(patientOverlapMessage(patient ? `${patient.first_name} ${patient.last_name}` : "This patient", dup));
         return;
       }
+    } catch {
+      toast.error("Could not check patient overlaps. Try again before creating the PCR.");
+      return;
     }
 
     setSaving(true);

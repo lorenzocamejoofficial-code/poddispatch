@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { personKey, seedPeople, seedPickupMinute } from "./seed-people.ts";
 import { ensureCmsChargeMasterForCompany } from "../_shared/seed-charge-master.ts";
 
 // ── Synthetic Medicare MBIs ────────────────────────────────────────────────
@@ -613,6 +614,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
   for (const c of realCrews ?? []) crewByTruck.set(c.truck_id, c);
   const trucksWithCrew = trucks.filter((t) => crewByTruck.has(t.id));
   const templates = (templatePatients ?? []) as any[];
+  const people = seedPeople(templates, config.patientCount, FAKE_NAMES);
 
   const preconditions: { name: string; ok: boolean; detail: string }[] = [
     { name: "real_trucks_active", ok: trucks.length > 0, detail: `${trucks.length} active trucks` },
@@ -648,16 +650,22 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
   let patientIds: string[] = [];
   let tripCount = 0;
 
-  // ── Clone patients from templates with name suffixing (D4) ───────────────────
+  // ── One stable synthetic patient per person, independent of transport type ───────────────────
   try {
     const cloned: Record<string, unknown>[] = [];
+    const { data: existingPeople, error: peopleError } = await admin.from("patients")
+      .select("id, first_name, last_name, dob").eq("company_id", companyId).eq("is_simulated", true);
+    if (peopleError) throw new Error("Synthetic patient lookup failed");
+    const existingByPerson = new Map((existingPeople ?? []).map((p: any) => [personKey(p), p.id]));
     const tripTypes: string[] = [];
     for (const [type, count] of Object.entries(config.tripMix)) for (let j = 0; j < count; j++) tripTypes.push(type);
     const payerTypes: string[] = [];
     for (const [payer, count] of Object.entries(config.payerMix)) for (let j = 0; j < count; j++) payerTypes.push(payer);
 
     for (let i = 0; i < config.patientCount; i++) {
-      const tpl = templates[i % templates.length];
+      const person = people[i];
+      const tpl = person.template;
+      if (existingByPerson.has(personKey(person))) continue;
       // Strip identity/audit fields; clone the rest
       const {
         id: _id, created_at: _ca, updated_at: _ua, is_template: _it,
@@ -667,11 +675,13 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
       const desiredPayer = payerTypes[i % payerTypes.length] || tpl.primary_payer || "Medicare";
       cloned.push({
         ...rest,
-        first_name: tpl.first_name,
-        last_name: `${tpl.last_name} #${i + 1}`,
+        first_name: person.first_name,
+        last_name: person.last_name,
+        dob: person.dob,
         // Override transport/payer when scenario mix demands it; keep template defaults otherwise
         transport_type: normalizeTransportType(desiredTrip),
         primary_payer: desiredPayer,
+        member_id: demoMemberId(desiredPayer, tpl.member_id, i + 1, `SIM${String(i + 1).padStart(6, "0")}`),
         // PCS dates are re-based on the seed date. Template charts carry
         // whatever date they were created with, and a stale signature made
         // EVERY seeded claim show an "expired PCS" hard blocker regardless of
@@ -700,9 +710,10 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         { field: "status", values: VALID_PATIENT_STATUSES },
       ],
       batchSize: 25,
-      select: "id",
+      select: "id, first_name, last_name, dob",
     });
-    patientIds = (insertedRows as any[]).map((p) => p.id);
+    for (const p of insertedRows as any[]) existingByPerson.set(personKey(p), p.id);
+    patientIds = people.map(p => existingByPerson.get(personKey(p))).filter((id): id is string => typeof id === "string");
   } catch (e: any) {
     pushSeedLog(logs, { step: "clone_template_patients", status: "error", error: e.message });
   }
@@ -711,7 +722,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
   let tripRowsInserted: any[] = [];
   try {
     const totalTrips = Object.values(config.tripMix).reduce((sum, n) => sum + (n ?? 0), 0);
-    const tripsToCreate = Math.min(totalTrips, patientIds.length);
+    const tripsToCreate = patientIds.length ? totalTrips : 0;
     const tripTypes: string[] = [];
     for (const [type, count] of Object.entries(config.tripMix)) for (let j = 0; j < count; j++) tripTypes.push(type);
 
@@ -721,15 +732,26 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
 
     const legRows: Record<string, unknown>[] = [];
     const slotRows: Record<string, unknown>[] = [];
+    const nextPickupByPatient = new Map<string, number>();
+    const { data: seededToday, error: seededTodayError } = await admin.from("scheduling_legs")
+      .select("patient_id, trip_type, pickup_time, estimated_duration_minutes").eq("company_id", companyId).eq("is_simulated", true).eq("run_date", today).in("patient_id", patientIds);
+    if (seededTodayError) throw new Error("Existing synthetic run lookup failed");
+    const alreadySeeded = new Set((seededToday ?? []).map((l: any) => `${l.patient_id}|${l.trip_type}`));
+    for (const l of seededToday ?? []) {
+      if (l.pickup_time) nextPickupByPatient.set(l.patient_id, Math.max(nextPickupByPatient.get(l.patient_id) ?? 0, timeToMin(l.pickup_time) + Math.max(l.estimated_duration_minutes ?? 30, 30) + 60));
+    }
 
     for (let i = 0; i < tripsToCreate; i++) {
-      const patientId = patientIds[i];
+      const patientId = patientIds[i % patientIds.length];
       const tripType = normalizeTripType(tripTypes[i % tripTypes.length] || "dialysis");
+      if (alreadySeeded.has(`${patientId}|${tripType}`)) continue;
       const truckIdx = i % truckIds.length;
       const truckId = truckIds[truckIdx];
-      const pickupTime = pressure?.overstackedDialysisHours && tripType === "dialysis"
+      const pickupTimeBase = pressure?.overstackedDialysisHours && tripType === "dialysis"
         ? pick(["06:00", "06:15", "06:30"])
         : (tripType === "dialysis" ? randTime(5, 8) : randTime(8, 14));
+      const pickupMinute = seedPickupMinute(timeToMin(pickupTimeBase), patientId, nextPickupByPatient);
+      const pickupTime = addMinutes("00:00", pickupMinute);
       const pickupLoc = pressure?.crossCityRouting ? pick(pick(CITY_CLUSTERS)) : pick(FAKE_ADDRESSES);
       const facility = facilityNames[i % Math.max(1, facilityNames.length)] || facilityNames[0];
       const legId = crypto.randomUUID();
@@ -781,8 +803,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
       const slot = slotRows[i] as any;
       if (!legIdSet.has(leg.id)) continue;
 
-      const tplIdx = i % templates.length;
-      const tpl = templates[tplIdx];
+      const tpl = people[i % people.length].template;
       const tripType = leg.trip_type as string;
       const pickupTime: string = leg.pickup_time;
       const truckId: string = slot.truck_id;
@@ -844,7 +865,7 @@ async function seedScenario(admin: any, companyId: string, userId: string, scena
         : (tripType === "dialysis" ? ["N18.6", "Z99.2"] : ["R26.2"]);
 
       tripRows.push({
-        patient_id: patientIds[i], truck_id: truckId, crew_id: crewId, leg_id: leg.id,
+        patient_id: leg.patient_id, truck_id: truckId, crew_id: crewId, leg_id: leg.id,
         run_date: today, status: "ready_for_billing", trip_type: tripType, pcr_type: pcrType,
         pickup_location: leg.pickup_location, destination_location: leg.destination_location,
         scheduled_pickup_time: pickupTime,
@@ -1966,6 +1987,7 @@ async function createDenialsRemitsClaimPool(admin: any, companyId: string, neede
       company_id: companyId,
       first_name: ["Denise", "Robert", "Marsha", "Charles"][i],
       last_name: ["Coleman", "Harris", "Reed", "Bennett"][i],
+      dob: `1940-01-${String(i + 1).padStart(2, "0")}`,
       primary_payer: i % 2 === 0 ? "medicare" : "medicaid",
       member_id: i % 2 === 0 ? syntheticMbi(9000 + i) : `SIM${Date.now()}${i}`,
       is_simulated: true,

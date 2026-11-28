@@ -1,0 +1,2 @@
+ALTER TABLE public.company_settings ADD COLUMN default_dwell_minutes jsonb NOT NULL DEFAULT '{"dialysis":240,"wound_care":60,"outpatient":60,"outpatient_specialty":90,"ift":null,"ift_discharge":null,"discharge":null,"psych_transport":null}'::jsonb;
+ALTER TABLE public.company_settings ADD CONSTRAINT default_dwell_minutes_object CHECK (jsonb_typeof(default_dwell_minutes) = 'object');

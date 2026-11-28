@@ -1,3 +1,4 @@
+import { dwellMinutesFor } from "./dwell-defaults";
 /**
  * Advisory patient time prediction, computed from existing PCR/status stamps.
  * Pure functions only — never writes anything. Callers show suggestions; the
@@ -147,21 +148,27 @@ function toHHMM(total: number): string {
   return `${String(Math.floor(c / 60)).padStart(2, "0")}:${String(c % 60).padStart(2, "0")}`;
 }
 
-/** Return pickup: chair time + median turnaround → else chair time + planned chair duration + buffer. */
+/** Return pickup: learned turnaround → explicit chair duration (+ legacy buffer) → per-type dwell at A drop. In-vehicle defaults are separate. */
 export function suggestReturnPickup(input: {
   chairTime: string | null | undefined;
   turnaround: SampleStats;
   plannedChairMinutes: number;
   bufferMinutes?: number;
+  aLegDropTime?: string | null;
+  transportType?: string | null;
+  dwellDefaults?: unknown;
 }): Suggestion {
-  const start = toMinutes(input.chairTime);
+  const start = toMinutes(input.chairTime) ?? toMinutes(input.aLegDropTime);
   const { n, confidence, median } = input.turnaround;
   if (start == null) return { value: null, source: "none", n, confidence };
-  if (median != null) return { value: toHHMM(start + median), source: "history", n, confidence };
+  if (median != null && n >= MIN_SAMPLES && confidence !== "none") return { value: toHHMM(start + median), source: "history", n, confidence };
   if (input.plannedChairMinutes > 0) {
     const buf = input.bufferMinutes ?? DEFAULT_B_LEG_BUFFER_MINUTES;
     return { value: toHHMM(start + input.plannedChairMinutes + buf), source: "plan", n, confidence: "none" };
   }
+  const dwell = dwellMinutesFor(input.transportType, input.dwellDefaults);
+  const drop = toMinutes(input.aLegDropTime) ?? start;
+  if (dwell != null) return { value: toHHMM(drop + dwell), source: "default", n, confidence: "none" };
   return { value: null, source: "none", n, confidence: "none" };
 }
 

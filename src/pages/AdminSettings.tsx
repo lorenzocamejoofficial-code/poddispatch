@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
+import { DEFAULT_DWELL_MINUTES } from "@/lib/dwell-defaults";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +20,8 @@ export default function AdminSettings() {
   const { role, isSystemCreator } = useAuth();
   const isOwner = role === "owner" || role === "creator";
   const isAdmin = isOwner || role === "manager";
+  const [dwellDefaults, setDwellDefaults] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(DEFAULT_DWELL_MINUTES).map(([k, v]) => [k, v == null ? "" : String(v)])));
+  const [dwellError, setDwellError] = useState<string | null>(null);
   const [settingsId, setSettingsId] = useState("");
   const [graceWindow, setGraceWindow] = useState("15");
   const [loadTime, setLoadTime] = useState("10");
@@ -60,9 +64,13 @@ export default function AdminSettings() {
   };
 
   useEffect(() => {
-    supabase.from("company_settings").select("*").limit(1).maybeSingle().then(({ data }) => {
+    void (async () => {
+    const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+    const { data } = await supabase.from("company_settings").select("*").eq("company_id", companyId).maybeSingle();
       if (data) {
         setSettingsId(data.id);
+        const map = data.default_dwell_minutes as Record<string, number | null>;
+        setDwellDefaults(Object.fromEntries(Object.entries({ ...DEFAULT_DWELL_MINUTES, ...map }).map(([k, v]) => [k, v == null ? "" : String(v)])));
         setGraceWindow(String((data as any).grace_window_minutes ?? 15));
         setLoadTime(String((data as any).load_time_minutes ?? 10));
         setUnloadTime(String((data as any).unload_time_minutes ?? 10));
@@ -77,13 +85,15 @@ export default function AdminSettings() {
         setTrackingCurfewEnabled((data as any).tracking_curfew_enabled ?? true);
         setTrackingCurfewTime(String((data as any).tracking_curfew_time ?? "21:00").slice(0, 5));
       }
-    });
+    })();
 
   }, []);
 
   const save = async () => {
+    if (Object.values(dwellDefaults).some(v => v !== "" && (!Number.isSafeInteger(Number(v)) || Number(v) < 0))) { setDwellError("Dwell minutes must be a non-negative whole number, or blank."); return; }
     setSaving(true);
     const payload: Record<string, unknown> = {
+      default_dwell_minutes: Object.fromEntries(Object.entries(dwellDefaults).map(([k, v]) => [k, v === "" ? null : Number(v)])),
       grace_window_minutes: parseInt(graceWindow),
       load_time_minutes: parseInt(loadTime),
       unload_time_minutes: parseInt(unloadTime),
@@ -99,8 +109,10 @@ export default function AdminSettings() {
     };
     // Retention policy is owner-narrow (legal/compliance commitment).
     if (isOwner) payload.retention_policy_years = parseInt(retentionYears);
-    await supabase.from("company_settings").update(payload as any).eq("id", settingsId);
-    toast.success("Settings saved");
+    const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+    const { error } = await supabase.from("company_settings").update(payload as any).eq("id", settingsId).eq("company_id", companyId);
+    if (error) toast.error("Settings could not be saved");
+    else toast.success("Settings saved");
     setSaving(false);
   };
 
@@ -190,6 +202,16 @@ export default function AdminSettings() {
           </div>
         </section>
 
+        <section className="space-y-3">
+          <h3 className="text-lg font-semibold text-foreground">Default facility dwell (minutes)</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {Object.keys(DEFAULT_DWELL_MINUTES).map(type => <div key={type}>
+              <Label htmlFor={`dwell-${type}`}>{type.replace(/_/g, " ")}</Label>
+              <Input id={`dwell-${type}`} type="number" min={0} step={1} disabled={!isAdmin} value={dwellDefaults[type] ?? ""} placeholder="No return wait" aria-invalid={!!dwellError} className={dwellError ? "border-destructive focus-visible:ring-destructive" : ""} onChange={e => { setDwellError(null); setDwellDefaults(d => ({ ...d, [type]: e.target.value })); }} />
+            </div>)}
+          </div>
+          {dwellError && <p className="text-xs text-destructive">{dwellError}</p>}
+        </section>
         {/* Service Time Defaults */}
         {/* Fleet Tracking */}
         <section className="space-y-3">

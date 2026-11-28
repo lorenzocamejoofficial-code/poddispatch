@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { getActiveCompanyId, NO_COMPANY } from "@/lib/company-scope";
 import { useSimulationSession } from "@/hooks/useSimulationSession";
 import { getLocalToday } from "@/lib/local-date";
+import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
+import { suggestReturnPickup, EMPTY_STATS } from "@/lib/patient-time-prediction";
 import { deriveRecurringLegTypes } from "@/lib/leg-location-types";
 
 /* ── Shared types ── */
@@ -171,6 +173,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
   const [selectedDate, setSelectedDate] = useState(getLocalToday());
   const [legs, setLegs] = useState<LegDisplay[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
+  const returnTimeStats = usePatientTimeStats(patients.map(p => p.id));
   const [trucks, setTrucks] = useState<TruckOption[]>([]);
   const [crews, setCrews] = useState<CrewDisplay[]>([]);
   const [loading, setLoading] = useState(true);
@@ -336,8 +339,8 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
   const autoGenerateLegs = useCallback(async (): Promise<number> => {
     // Resolve company_id for RLS and tenant scoping
-    const { data: companyIdRaw } = await supabase.rpc("get_my_company_id");
-    const companyId = (companyIdRaw as string | null) ?? NO_COMPANY;
+    const companyId = (await getActiveCompanyId()) ?? NO_COMPANY;
+    const { data: dwellSettings } = await supabase.from("company_settings").select("default_dwell_minutes").eq("company_id", companyId).maybeSingle();
 
     // Get active patients with recurring transport whose schedule matches selectedDate
     const eligible = patients.filter((p) => {
@@ -408,12 +411,12 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
       const overrideTreatmentMinutes = ovr
         ? ((ovr.duration_hours ?? 0) * 60) + (ovr.duration_minutes ?? 0)
         : 0;
-      const isDialysis = p.transport_type === "dialysis";
-      const defaultTreatmentMinutes = isDialysis ? 210 : 60;
-      const treatmentMinutes =
-        overrideTreatmentMinutes > 0 ? overrideTreatmentMinutes
-        : baseTreatmentMinutes > 0 ? baseTreatmentMinutes
-        : defaultTreatmentMinutes;
+      const treatmentMinutes = overrideTreatmentMinutes > 0 ? overrideTreatmentMinutes : baseTreatmentMinutes;
+      const returnSuggestion = suggestReturnPickup({
+        chairTime, aLegDropTime: chairTime, turnaround: returnTimeStats.get(p.id)?.turnaround ?? EMPTY_STATS.turnaround,
+        plannedChairMinutes: treatmentMinutes, bufferMinutes: 0,
+        transportType: p.transport_type, dwellDefaults: dwellSettings?.default_dwell_minutes,
+      });
 
       // Origin/destination types from the actual sites and transport kind
       // (CMS Pub. 100-04 Ch. 15 §30.A); unknown stays null so the gate blocks.
@@ -450,7 +453,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
       // Auto B-leg for ALL transport types
       if (!existingLegTypes.has("B")) {
-        const bPickupTime = chairTime ? subtractMinutes(chairTime, -treatmentMinutes) : null;
+        const bPickupTime = typeof returnSuggestion.value === "string" ? returnSuggestion.value : null;
         newLegs.push({
           patient_id: p.id,
           leg_type: "B",
@@ -483,7 +486,7 @@ export function SchedulingProvider({ children }: { children: ReactNode }) {
 
     await fetchLegs();
     return patientsAdded;
-  }, [patients, selectedDate, fetchLegs]);
+  }, [patients, selectedDate, fetchLegs, returnTimeStats]);
 
   useEffect(() => {
     setLoading(true);

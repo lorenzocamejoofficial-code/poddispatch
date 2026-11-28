@@ -134,6 +134,34 @@
       "when": 1795413733658,
       "tag": "0018_deprecate_unused_coverage_discoveries",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795847035151,
+      "tag": "0019_truck_shift_window",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795847046358,
+      "tag": "0020_company_default_dwell_minutes",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795847349013,
+      "tag": "0021_patient_transport_overlap_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795847455506,
+      "tag": "0022_qualify_overlap_guard_bounds",
+      "breakpoints": true
     }
   ]
 }

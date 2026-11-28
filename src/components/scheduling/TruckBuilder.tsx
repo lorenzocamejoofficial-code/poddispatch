@@ -23,7 +23,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { useDroppable } from "@dnd-kit/core";
+import { useDndContext, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import type { OperationalAlert } from "@/components/dispatch/OperationalAlertsPanel";
 import { sortSchedulingLegs } from "@/lib/leg-order";
@@ -31,9 +31,11 @@ import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
 import { getFeasibilityRefreshKey, useTruckDayFeasibility, useTruckDayLegs, toFeasibilityLeg } from "@/hooks/useTruckDayFeasibility";
 import { suggestTrucksForRun } from "@/lib/truck-suggestion";
 import { buildTruckCandidates, toSuggestionRun } from "@/lib/truck-suggestion-candidates";
+import { presentTruckSuggestions } from "@/lib/truck-suggestion-presentation";
+import { truckRunsPastShift } from "@/lib/truck-shift";
 import { buildTruckSuggestionFeedback } from "@/lib/truck-suggestion-feedback";
 import type { TruckCandidate } from "@/lib/truck-suggestion";
-import type { FeasibilityBuffers } from "@/lib/schedule-feasibility";
+import { computeWindow, type FeasibilityBuffers } from "@/lib/schedule-feasibility";
 import { TruckSuggestionReasons, type TruckSuggestionView } from "@/components/scheduling/TruckSuggestionReasons";
 import type { TruckDayFeasibility } from "@/lib/schedule-feasibility";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -191,9 +193,10 @@ const SortableLegItem = memo(function SortableLegItem({ leg, hasAlert, safetySta
 });
 
 // Droppable zone for a truck — handles both pool→truck and truck→truck
-const TruckDropZone = memo(function TruckDropZone({ truckId, isEmpty }: { truckId: string; isEmpty: boolean }) {
+const TruckDropZone = memo(function TruckDropZone({ truckId, isEmpty, disabled = false }: { truckId: string; isEmpty: boolean; disabled?: boolean }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `truck-drop-${truckId}`,
+    disabled,
     data: { type: "truck-zone", truckId },
   });
 
@@ -275,6 +278,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
   const [truckEquipmentMap, setTruckEquipmentMap] = useState<Map<string, TruckEquipment>>(new Map());
   const [truckServiceLevel, setTruckServiceLevel] = useState<Map<string, string>>(new Map());
   const [truckMaxWeight, setTruckMaxWeight] = useState<Map<string, number | null>>(new Map());
+  const [truckShifts, setTruckShifts] = useState<Map<string, { start: string | null; end: string | null }>>(new Map());
   const dayLegs = useTruckDayLegs(selectedDate, feasibilityRefreshKey);
   const [overriddenLegIds, setOverriddenLegIds] = useState<Set<string>>(new Set());
 
@@ -314,9 +318,10 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       setHoldTimers((data as any[]) ?? []);
     };
     const loadCrewCaps = async () => {
+      const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
       const { data } = await supabase.from("crews")
         .select("truck_id, member1:profiles!crews_member1_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member2:profiles!crews_member2_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok), member3:profiles!crews_member3_id_fkey(sex, stair_chair_trained, bariatric_trained, oxygen_handling_trained, lift_assist_ok)")
-        .eq("active_date", selectedDate);
+        .eq("active_date", selectedDate).eq("company_id", scopedCompanyId);
       const map = new Map<string, { member1: any; member2: any; member3: any }>();
       for (const c of (data ?? []) as any[]) {
         map.set(c.truck_id, { member1: c.member1, member2: c.member2, member3: c.member3 });
@@ -325,7 +330,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
     };
     const loadTruckEquip = async () => {
       const scopedCompanyId = (await getActiveCompanyId()) ?? NO_COMPANY;
-      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_oxygen_mount, has_bariatric_kit, has_bariatric_stretcher, service_level, max_patient_weight_lbs").eq("active", true).eq("company_id", scopedCompanyId);
+      const { data } = await supabase.from("trucks").select("id, has_power_stretcher, has_stair_chair, has_oxygen_mount, has_bariatric_kit, has_bariatric_stretcher, service_level, max_patient_weight_lbs, shift_start, shift_end").eq("active", true).eq("company_id", scopedCompanyId);
       const map = new Map<string, TruckEquipment>();
       const levels = new Map<string, string>();
       const weights = new Map<string, number | null>();
@@ -343,6 +348,7 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       setTruckEquipmentMap(map);
       setTruckServiceLevel(levels);
       setTruckMaxWeight(weights);
+      setTruckShifts(new Map((data ?? []).map(t => [t.id, { start: t.shift_start, end: t.shift_end }])));
     };
     loadRisks();
     loadTimers();
@@ -440,10 +446,8 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
       legsByTruck: dayLegs.legsByTruck,
     });
     const result = suggestTrucksForRun({ run: toSuggestionRun(suggestFor, timing), candidates, buffers: dayLegs.buffers });
-    const views = new Map<string, TruckSuggestionView>();
-    result.eligible.forEach((e, i) => views.set(e.truckId, { kind: "eligible", rank: i + 1, reasons: e.reasons }));
-    result.ineligible.forEach((r) => views.set(r.truckId, { kind: "ineligible", reason: r.reason }));
-    return { views, skipped: skippedNoCrew.length, suitableCount: result.eligible.length };
+    const { views, placeableCount } = presentTruckSuggestions(result, timing, dayLegs.legsByTruck);
+    return { views, skipped: skippedNoCrew.length, suitableCount: placeableCount };
   }, [suggestFor, trucks, crews, truckServiceLevel, truckEquipmentMap, truckMaxWeight, getCrewCapability, availability, dayLegs]);
 
   const suggestionPanelRef = useRef<HTMLDivElement>(null);
@@ -708,7 +712,11 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-        {trucks.map((truck) => {
+        {[...trucks].sort((a, b) => {
+          if (!suggestion) return 0;
+          const rank = (id: string) => { const v = suggestion.views.get(id); return v && v.kind !== "ineligible" ? v.rank : Number.MAX_SAFE_INTEGER; };
+          return rank(a.id) - rank(b.id);
+        }).map((truck) => {
           const tLegs = truckLegs(truck.id);
           const hasHeavy = tLegs.some((l) => (l.patient_weight ?? 0) > 200);
           const crew = crewForTruck(truck.id);
@@ -759,6 +767,9 @@ export function TruckBuilder({ trucks, legs, crews, selectedDate, onRefresh, onE
               forceExpanded={allExpanded}
               feasibility={feasibilityByTruck.get(truck.id)}
               suggestion={suggestion?.views.get(truck.id)}
+              suggestedLegId={suggestFor?.id}
+              shift={truckShifts.get(truck.id)}
+              shiftWindows={tLegs.filter(l => !["cancelled", "pending_cancellation", "no_show"].includes(l.slot_status)).map(l => computeWindow(toFeasibilityLeg({ id: l.id, leg_type: l.leg_type, pickup_time: l.pickup_time, estimated_duration_minutes: l.estimated_duration_minutes, patient_id: l.patient_id, oneoff_name: l.patient_name, patient: { chair_time: l.chair_time } }, 0, dayLegs.stats, dayLegs.settings), dayLegs.buffers))}
             />
           );
         })}
@@ -869,14 +880,20 @@ interface TruckCardProps {
   forceExpanded?: boolean;
   feasibility?: TruckDayFeasibility;
   suggestion?: TruckSuggestionView;
+  suggestedLegId?: string;
+  shift?: { start: string | null; end: string | null };
+  shiftWindows?: import("@/lib/schedule-feasibility").LegWindow[];
 }
 
 const TruckCard = memo(function TruckCard({
   truck, tLegs, crew, downRecord, isDown, hasRunsWhileDown, hasHeavy,
   first, last, hasActiveLink, utilizationColor, unassigned, addingLeg, setAddingLeg,
   onAssignLeg, onRemoveLeg, onEditException, onCancelLeg, onRestoreLeg, truckAlertCount = 0, legAlertIds = new Set(), riskData,
-  crewCapability, truckEquipment, onSafetyOverride, overriddenLegIds = new Set(), forceExpanded = false, feasibility, suggestion,
+  crewCapability, truckEquipment, onSafetyOverride, overriddenLegIds = new Set(), forceExpanded = false, feasibility, suggestion, shift, suggestedLegId, shiftWindows,
 }: TruckCardProps) {
+  const { active } = useDndContext();
+  const hardBlockedDrag = suggestion?.kind === "ineligible" && active?.id === suggestedLegId;
+  const selectableLegs = suggestion?.kind === "ineligible" ? unassigned.filter(l => l.id !== suggestedLegId) : unassigned;
   const [legsExpanded, setLegsExpanded] = useState(false);
   const VISIBLE_LEG_COUNT = 4;
   const expanded = legsExpanded || forceExpanded;
@@ -886,6 +903,7 @@ const TruckCard = memo(function TruckCard({
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `truck-drop-${truck.id}`,
+    disabled: isDown || hardBlockedDrag,
     data: { type: "truck-zone", truckId: truck.id },
   });
 
@@ -993,6 +1011,10 @@ const TruckCard = memo(function TruckCard({
         </div>
       </div>
 
+      {shift && (shift.start || shift.end) && <p className="mb-1 text-[10px] text-muted-foreground">Shift {shift.start?.slice(0, 5) ?? "—"} → {shift.end?.slice(0, 5) ?? "—"}</p>}
+      {shift?.end && truckRunsPastShift(shiftWindows ?? [], shift.start, shift.end) && (
+        <p className="mb-2 flex items-center gap-1 text-xs text-[hsl(var(--status-yellow))]"><AlertTriangle className="h-3 w-3" />Runs past {shift.end.slice(0, 5)} shift end</p>
+      )}
       {/* Down warning */}
       {isDown && (
         <div className="mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
@@ -1085,7 +1107,7 @@ const TruckCard = memo(function TruckCard({
             )}
           </div>
         ) : (
-          <TruckDropZone truckId={truck.id} isEmpty />
+          <TruckDropZone truckId={truck.id} isEmpty disabled={isDown || hardBlockedDrag} />
         )}
       </div>
 
@@ -1096,14 +1118,14 @@ const TruckCard = memo(function TruckCard({
             <Select value={addingLeg.legId} onValueChange={(v) => setAddingLeg({ truckId: truck.id, legId: v })}>
               <SelectTrigger className="text-xs h-8"><SelectValue placeholder="Select leg" /></SelectTrigger>
               <SelectContent>
-                {unassigned.map((l) => (
+                {selectableLegs.map((l) => (
                   <SelectItem key={l.id} value={l.id}>
                     {l.leg_type}: {l.patient_name} {l.pickup_time ?? ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Button size="sm" className="h-8" onClick={() => addingLeg.legId && onAssignLeg(truck.id, addingLeg.legId)}>Add</Button>
+            <Button size="sm" className="h-8" disabled={!selectableLegs.some(l => l.id === addingLeg.legId)} onClick={() => addingLeg.legId && onAssignLeg(truck.id, addingLeg.legId)}>Add</Button>
             <Button size="sm" variant="ghost" className="h-8" onClick={() => setAddingLeg(null)}>Cancel</Button>
           </div>
         ) : (

@@ -45,6 +45,7 @@ import { PatientViewDialog } from "@/components/patients/PatientViewDialog";
 import { InsuranceToolsHeader } from "@/components/patients/InsuranceToolsHeader";
 import { ClaimTimelineDrawer } from "@/components/billing/ClaimTimelineDrawer";
 import { Download } from "lucide-react";
+import { useDwellDefaults } from "@/hooks/useDwellDefaults";
 import { usePatientTimeStats } from "@/hooks/usePatientTimeStats";
 import { TimeSuggestionChip } from "@/components/scheduling/TimeSuggestionChip";
 import { EMPTY_STATS, suggestReturnPickup } from "@/lib/patient-time-prediction";
@@ -114,6 +115,7 @@ export default function Patients() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Patient | null>(null);
+  const dwellDefaults = useDwellDefaults();
   const patientTimeStats = usePatientTimeStats([editing?.id]);
 
   // Selection state
@@ -1342,6 +1344,7 @@ export default function Patients() {
                                 const st = (editing?.id && patientTimeStats.get(editing.id)) || EMPTY_STATS;
                                 const sug = suggestReturnPickup({
                                   chairTime: form.chair_time,
+                                  aLegDropTime: form.chair_time, transportType: form.transport_type, dwellDefaults,
                                   turnaround: st.turnaround,
                                   plannedChairMinutes: (parseInt(form.chair_time_duration_hours) || 0) * 60 + (parseInt(form.chair_time_duration_minutes) || 0),
                                 });
